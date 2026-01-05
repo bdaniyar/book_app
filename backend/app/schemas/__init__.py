@@ -1,9 +1,9 @@
-from .auth import LoginRequest, RegisterRequest, TokenResponse
+from .auth import LoginRequest, RegisterRequest, TokenPairResponse
 from .user import UserRead
 
 __all__ = [
     "LoginRequest",
     "RegisterRequest",
-    "TokenResponse",
+    "TokenPairResponse",
     "UserRead",
 ]

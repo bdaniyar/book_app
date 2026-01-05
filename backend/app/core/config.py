@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import os
+
 
 class Settings(BaseSettings):
     # Must be provided via environment or backend/.env
@@ -12,7 +14,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     model_config = SettingsConfigDict(
-        env_file="backend/.env",
+        env_file=os.path.join(os.path.dirname(__file__), "..", "..", ".env"),
         env_ignore_empty=True,
         extra="ignore",
     )

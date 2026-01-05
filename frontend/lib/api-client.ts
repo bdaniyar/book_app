@@ -4,6 +4,7 @@
  */
 
 import { API_CONFIG } from './api-config'
+import { getAccessToken } from './auth-storage'
 
 /**
  * API Response type
@@ -79,10 +80,13 @@ async function request<T = any>(
     try {
         const fullUrl = buildUrl(url, params)
 
+        const token = getAccessToken()
+
         const response = await fetch(fullUrl, {
             method,
             headers: {
                 ...API_CONFIG.HEADERS,
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 ...headers,
             },
             body: body ? JSON.stringify(body) : undefined,

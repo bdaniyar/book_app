@@ -47,6 +47,15 @@ export type UserProfile = {
 export type LibraryStatus = 'reading' | 'want-to-read' | 'read' | 'favorite'
 
 /**
+ * Auth Tokens type
+ */
+export type AuthTokens = {
+    access_token: string
+    refresh_token: string
+    token_type: string
+}
+
+/**
  * Book Services
  */
 export const bookService = {
@@ -333,14 +342,14 @@ export const authService = {
      * Login
      */
     login: async (email: string, password: string) => {
-        return apiClient.post(API_ENDPOINTS.AUTH.LOGIN, { email, password })
+        return apiClient.post<AuthTokens>(API_ENDPOINTS.AUTH.LOGIN, { email, password })
     },
 
     /**
      * Register
      */
     register: async (email: string, password: string, name: string) => {
-        return apiClient.post(API_ENDPOINTS.AUTH.REGISTER, { email, password, name })
+        return apiClient.post<AuthTokens>(API_ENDPOINTS.AUTH.REGISTER, { email, password, name })
     },
 
     /**
