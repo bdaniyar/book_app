@@ -12,9 +12,12 @@ import { Separator } from '@/components/ui/separator'
 import { Award, BookOpen, Calendar, Settings, Star } from 'lucide-react'
 
 import { BookCard } from '@/components/book-card'
-import { authService } from '@/lib/api-services'
+import { authService, profileService } from '@/lib/api-services'
 import { clearSession, setAccessToken } from '@/lib/auth-storage'
 import { trendingBooks } from '@/lib/books-data'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 
 type Mode = 'login' | 'register'
 
@@ -46,6 +49,20 @@ export default function ProfilePage() {
   const [me, setMe] = useState<MeUser | null>(null)
   const [meLoading, setMeLoading] = useState(false)
 
+  const [editOpen, setEditOpen] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editBio, setEditBio] = useState('')
+
+  const [privacy, setPrivacy] = useState<'public' | 'private'>('public')
+  const [notifyEmail, setNotifyEmail] = useState(true)
+  const [notifyPush, setNotifyPush] = useState(false)
+
+  const [newPassword, setNewPassword] = useState('')
+  const [newPassword2, setNewPassword2] = useState('')
+
+  const [editSaving, setEditSaving] = useState(false)
+
   useEffect(() => {
     // On page load try silent refresh (if refresh cookie exists)
     const run = async () => {
@@ -68,6 +85,14 @@ export default function ProfilePage() {
 
     run()
   }, [])
+
+  useEffect(() => {
+    if (!me) return
+    setEditName(me.name ?? '')
+    setEditEmail(me.email ?? '')
+    // placeholders (no backend yet)
+    setEditBio('')
+  }, [me])
 
   const displayName = useMemo(() => {
     if (me?.name && me.name.trim()) return me.name.trim()
@@ -129,6 +154,25 @@ export default function ProfilePage() {
       setPassword('')
       setName('')
       setMode('login')
+    }
+  }
+
+  const onSaveProfile = async () => {
+    setError(null)
+    setEditSaving(true)
+    try {
+      const res = await profileService.update({
+        name: editName.trim() ? editName.trim() : null,
+        email: editEmail.trim() ? editEmail.trim() : null,
+      })
+      if (!res.success || !res.data) {
+        setError(res.error || 'Failed to update profile')
+        return
+      }
+      setMe(res.data as any)
+      setEditOpen(false)
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -218,7 +262,7 @@ export default function ProfilePage() {
                   </div>
 
                   <div className="flex flex-wrap gap-3 pt-2">
-                    <Button className="rounded-xl" disabled>
+                    <Button className="rounded-xl" onClick={() => setEditOpen(true)}>
                       <Settings className="h-4 w-4 mr-2" />
                       Edit Profile
                     </Button>
@@ -226,6 +270,155 @@ export default function ProfilePage() {
                       Logout
                     </Button>
                   </div>
+
+                  {/* Edit profile modal */}
+                  <Dialog open={editOpen} onOpenChange={setEditOpen}>
+                    <DialogContent className="sm:max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Edit profile</DialogTitle>
+                        <DialogDescription>Поменяй основные данные. Часть настроек пока локальные (без бэкенда).</DialogDescription>
+                      </DialogHeader>
+
+                      <Tabs defaultValue="profile" className="w-full">
+                        <TabsList className="w-full grid grid-cols-2">
+                          <TabsTrigger value="profile">Профиль</TabsTrigger>
+                          <TabsTrigger value="settings">Настройки</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="profile" className="pt-4">
+                          <div className="grid gap-4">
+                            <div className="grid gap-2">
+                              <Label htmlFor="edit-name">Name</Label>
+                              <Input
+                                id="edit-name"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder="Your name"
+                              />
+                            </div>
+
+                            <div className="grid gap-2">
+                              <Label htmlFor="edit-email">Email</Label>
+                              <Input
+                                id="edit-email"
+                                type="email"
+                                value={editEmail}
+                                onChange={(e) => setEditEmail(e.target.value)}
+                                placeholder="you@example.com"
+                              />
+                              <p className="text-xs text-muted-foreground">Email обновится в БД и будет использоваться для входа.</p>
+                            </div>
+
+                            <div className="grid gap-2">
+                              <Label htmlFor="edit-bio">Bio (placeholder)</Label>
+                              <Textarea
+                                id="edit-bio"
+                                value={editBio}
+                                onChange={(e) => setEditBio(e.target.value)}
+                                placeholder="Расскажи о себе (пока не сохраняется на сервере)"
+                              />
+                            </div>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="settings" className="pt-4">
+                          <div className="grid gap-6">
+                            <div className="rounded-lg border border-border/50 p-4">
+                              <p className="text-sm font-medium mb-2">Privacy (placeholder)</p>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  variant={privacy === 'public' ? 'default' : 'outline'}
+                                  onClick={() => setPrivacy('public')}
+                                >
+                                  Public
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant={privacy === 'private' ? 'default' : 'outline'}
+                                  onClick={() => setPrivacy('private')}
+                                >
+                                  Private
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">Пока не сохраняется (нужны поля в модели и endpoint).</p>
+                            </div>
+
+                            <div className="rounded-lg border border-border/50 p-4">
+                              <p className="text-sm font-medium mb-2">Notifications (placeholder)</p>
+                              <div className="grid gap-3">
+                                <label className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={notifyEmail}
+                                    onChange={(e) => setNotifyEmail(e.target.checked)}
+                                  />
+                                  Email notifications
+                                </label>
+                                <label className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={notifyPush}
+                                    onChange={(e) => setNotifyPush(e.target.checked)}
+                                  />
+                                  Push notifications
+                                </label>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">Пока не сохраняется (нужны поля/таблица).</p>
+                            </div>
+
+                            <div className="rounded-lg border border-border/50 p-4">
+                              <p className="text-sm font-medium mb-2">Change password (placeholder)</p>
+                              <div className="grid gap-3">
+                                <div className="grid gap-2">
+                                  <Label htmlFor="new-password">New password</Label>
+                                  <Input
+                                    id="new-password"
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label htmlFor="new-password2">Repeat new password</Label>
+                                  <Input
+                                    id="new-password2"
+                                    type="password"
+                                    value={newPassword2}
+                                    onChange={(e) => setNewPassword2(e.target.value)}
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Для реальной смены пароля нужен endpoint: <code>PUT /api/v1/profile/password</code>.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+
+                      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setEditName(me?.name ?? '')
+                            setEditEmail(me?.email ?? '')
+                            setEditBio('')
+                            setEditOpen(false)
+                          }}
+                          disabled={editSaving}
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="button" onClick={onSaveProfile} disabled={editSaving}>
+                          {editSaving ? 'Saving…' : 'Save changes'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
             </CardContent>

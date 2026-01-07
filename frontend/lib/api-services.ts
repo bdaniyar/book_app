@@ -42,6 +42,14 @@ export type UserProfile = {
 }
 
 /**
+ * Profile Update type
+ */
+export type ProfileUpdate = {
+    name?: string | null
+    email?: string | null
+}
+
+/**
  * Library Status type
  */
 export type LibraryStatus = 'reading' | 'want-to-read' | 'read' | 'favorite'
@@ -235,17 +243,17 @@ export const reviewService = {
  */
 export const profileService = {
     /**
-     * Get user profile
+     * Get user profile (uses /auth/me)
      */
     get: async () => {
-        return apiClient.get<UserProfile>(API_ENDPOINTS.PROFILE.GET)
+        return apiClient.get(API_ENDPOINTS.AUTH.ME)
     },
 
     /**
      * Update user profile
      */
-    update: async (data: Partial<UserProfile>) => {
-        return apiClient.put<UserProfile>(API_ENDPOINTS.PROFILE.UPDATE, data)
+    update: async (data: ProfileUpdate) => {
+        return apiClient.put(API_ENDPOINTS.PROFILE.UPDATE, data)
     },
 
     /**

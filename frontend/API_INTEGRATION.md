@@ -133,20 +133,16 @@ await reviewService.delete('review-id')
 
 ### Profile API
 
+> Сейчас в бэкенде реализовано базовое обновление профиля (name/email) через `/api/v1/profile`.
+
 ```typescript
 import { profileService } from '@/lib/api-services'
 
-// Получить профиль
-const profile = await profileService.get()
+// Получить профиль (использует /api/v1/auth/me)
+const me = await profileService.get()
 
-// Обновить профиль
-await profileService.update({ name: 'New Name', bio: 'Bio' })
-
-// Статистика
-const stats = await profileService.getStats()
-
-// Активность чтения
-const activity = await profileService.getReadingActivity()
+// Обновить профиль (name/email)
+const updated = await profileService.update({ name: 'New Name', email: 'new@email.com' })
 ```
 
 ### Recommendations API
@@ -403,11 +399,20 @@ export function AddToLibraryButton({ bookId }: { bookId: string }) {
 - `PUT /api/v1/reviews/:id` - Обновить отзыв
 - `DELETE /api/v1/reviews/:id` - Удалить отзыв
 
-### Profile
-- `GET /api/v1/profile` - Профиль
-- `PUT /api/v1/profile` - Обновить профиль
-- `GET /api/v1/profile/stats` - Статистика
-- `GET /api/v1/profile/reading-activity` - Активность
+### Profile (реализовано частично)
+- `GET /api/v1/profile` - Профиль (то же что /auth/me, но оставлено для отдельной ответственности)
+- `PUT /api/v1/profile` - Обновить профиль (name/email)
+
+### Profile (TODO)
+- `GET /api/v1/profile/stats` - Статистика (пока не реализовано)
+- `GET /api/v1/profile/reading-activity` - Активность (пока не реализовано)
+
+### Auth (реализовано)
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
 
 ### Recommendations
 - `GET /api/v1/recommendations/personalized` - Персональные
@@ -419,12 +424,6 @@ export function AddToLibraryButton({ bookId }: { bookId: string }) {
 - `GET /api/v1/search/books` - Поиск книг
 - `GET /api/v1/search/authors` - Поиск авторов
 - `GET /api/v1/search/advanced` - Расширенный поиск
-
-### Auth (будущее)
-- `POST /api/v1/auth/login` - Вход
-- `POST /api/v1/auth/register` - Регистрация
-- `POST /api/v1/auth/logout` - Выход
-- `GET /api/v1/auth/me` - Текущий пользователь
 
 ---
 
