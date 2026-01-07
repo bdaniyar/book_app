@@ -13,7 +13,7 @@ import { Award, BookOpen, Calendar, Settings, Star } from 'lucide-react'
 
 import { BookCard } from '@/components/book-card'
 import { authService } from '@/lib/api-services'
-import { clearSession, getSession, setSession } from '@/lib/auth-storage'
+import { clearSession, setAccessToken } from '@/lib/auth-storage'
 import { trendingBooks } from '@/lib/books-data'
 
 type Mode = 'login' | 'register'
@@ -42,33 +42,32 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [session, setSessionState] = useState<ReturnType<typeof getSession>>(null)
+  const [isAuthed, setIsAuthed] = useState(false)
   const [me, setMe] = useState<MeUser | null>(null)
   const [meLoading, setMeLoading] = useState(false)
 
   useEffect(() => {
-    // Client-only: read localStorage after hydration
-    setSessionState(getSession())
-  }, [])
-
-  useEffect(() => {
-    // If we have a token, try to load current user
+    // On page load try silent refresh (if refresh cookie exists)
     const run = async () => {
-      if (!session) return
       setMeLoading(true)
       try {
-        const res = await authService.me()
-        if (res.success) {
-          setMe(res.data as any)
-        } else {
-          setMe(null)
+        const r = await authService.refresh()
+        if (r.success && r.data?.access_token) {
+          setAccessToken(r.data.access_token)
+          setIsAuthed(true)
+
+          const res = await authService.me()
+          if (res.success) {
+            setMe(res.data as any)
+          }
         }
       } finally {
         setMeLoading(false)
       }
     }
+
     run()
-  }, [session])
+  }, [])
 
   const displayName = useMemo(() => {
     if (me?.name && me.name.trim()) return me.name.trim()
@@ -85,46 +84,23 @@ export default function ProfilePage() {
 
     try {
       if (mode === 'register') {
-        // 1) Register user
         const regRes = await authService.register(email, password, name)
-
-        // If backend already returns tokens - use them.
-        if (regRes.success && regRes.data && (regRes.data as any).access_token) {
-          const { access_token, refresh_token } = regRes.data as any
-          setSession({ accessToken: access_token, refreshToken: refresh_token })
-          setSessionState(getSession())
-        } else {
-          // 2) Otherwise auto-login right after register
-          if (!regRes.success) {
-            setError(regRes.error || 'Registration failed')
-            return
-          }
-          const loginRes = await authService.login(email, password)
-          if (!loginRes.success || !loginRes.data) {
-            setError(loginRes.error || 'Auto-login failed after registration')
-            return
-          }
-          const { access_token, refresh_token } = loginRes.data as any
-          setSession({ accessToken: access_token, refreshToken: refresh_token })
-          setSessionState(getSession())
+        if (!regRes.success || !regRes.data?.access_token) {
+          setError(regRes.error || 'Registration failed')
+          return
         }
+        setAccessToken(regRes.data.access_token)
+        setIsAuthed(true)
       } else {
-        // Login
         const res = await authService.login(email, password)
-        if (!res.success || !res.data) {
+        if (!res.success || !res.data?.access_token) {
           setError(res.error || 'Login failed')
           return
         }
-        const { access_token, refresh_token } = res.data as any
-        if (!access_token || !refresh_token) {
-          setError('Login response does not contain tokens')
-          return
-        }
-        setSession({ accessToken: access_token, refreshToken: refresh_token })
-        setSessionState(getSession())
+        setAccessToken(res.data.access_token)
+        setIsAuthed(true)
       }
 
-      // Immediately load /auth/me and show profile
       setMeLoading(true)
       const meRes = await authService.me()
       if (meRes.success && meRes.data) {
@@ -141,18 +117,23 @@ export default function ProfilePage() {
     }
   }
 
-  const onLogout = () => {
-    clearSession()
-    setSessionState(null)
-    setMe(null)
-    setEmail('')
-    setPassword('')
-    setName('')
-    setMode('login')
+  const onLogout = async () => {
+    try {
+      await authService.logout()
+    } finally {
+      clearSession()
+      setAccessToken(null)
+      setIsAuthed(false)
+      setMe(null)
+      setEmail('')
+      setPassword('')
+      setName('')
+      setMode('login')
+    }
   }
 
   // Logged in view (beautiful/original-ish UI)
-  if (session) {
+  if (isAuthed) {
     const user = {
       name: me?.name?.trim() || displayName,
       username: me?.email ? `@${me.email.split('@')[0]}` : '@user',

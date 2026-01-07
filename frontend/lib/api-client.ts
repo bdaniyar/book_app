@@ -3,8 +3,8 @@
  * Centralized API client for making requests to the backend
  */
 
-import { API_CONFIG } from './api-config'
-import { getAccessToken } from './auth-storage'
+import { API_CONFIG, API_ENDPOINTS } from './api-config'
+import { getAccessToken, setAccessToken, clearAccessToken } from './auth-storage'
 
 /**
  * API Response type
@@ -77,13 +77,13 @@ async function request<T = any>(
         signal,
     } = options
 
-    try {
+    const doFetch = async (): Promise<Response> => {
         const fullUrl = buildUrl(url, params)
-
         const token = getAccessToken()
 
-        const response = await fetch(fullUrl, {
+        return fetch(fullUrl, {
             method,
+            credentials: 'include',
             headers: {
                 ...API_CONFIG.HEADERS,
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -92,6 +92,32 @@ async function request<T = any>(
             body: body ? JSON.stringify(body) : undefined,
             signal,
         })
+    }
+
+    try {
+        let response = await doFetch()
+
+        // If access token expired, try refresh once (refresh cookie is HttpOnly)
+        if ((response.status === 401 || response.status === 403) && url !== API_ENDPOINTS.AUTH.REFRESH) {
+            const refreshResp = await fetch(API_ENDPOINTS.AUTH.REFRESH, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    ...API_CONFIG.HEADERS,
+                },
+            })
+
+            if (refreshResp.ok) {
+                const refreshData = await refreshResp.json()
+                const newAccess = refreshData?.access_token
+                if (newAccess) {
+                    setAccessToken(newAccess)
+                    response = await doFetch()
+                }
+            } else {
+                clearAccessToken()
+            }
+        }
 
         const data = await response.json()
 

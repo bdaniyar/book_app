@@ -335,25 +335,32 @@ export const searchService = {
 }
 
 /**
- * Authentication Services (для будущего)
+ * Authentication Services
  */
 export const authService = {
     /**
-     * Login
+     * Login (sets refresh cookie server-side)
      */
     login: async (email: string, password: string) => {
-        return apiClient.post<AuthTokens>(API_ENDPOINTS.AUTH.LOGIN, { email, password })
+        return apiClient.post<{ access_token: string; token_type: string }>(API_ENDPOINTS.AUTH.LOGIN, { email, password })
     },
 
     /**
-     * Register
+     * Register (sets refresh cookie server-side)
      */
     register: async (email: string, password: string, name: string) => {
-        return apiClient.post<AuthTokens>(API_ENDPOINTS.AUTH.REGISTER, { email, password, name })
+        return apiClient.post<{ access_token: string; token_type: string }>(API_ENDPOINTS.AUTH.REGISTER, { email, password, name })
     },
 
     /**
-     * Logout
+     * Refresh access token using HttpOnly cookie
+     */
+    refresh: async () => {
+        return apiClient.post<{ access_token: string; token_type: string }>(API_ENDPOINTS.AUTH.REFRESH)
+    },
+
+    /**
+     * Logout (clears refresh cookie)
      */
     logout: async () => {
         return apiClient.post(API_ENDPOINTS.AUTH.LOGOUT)
