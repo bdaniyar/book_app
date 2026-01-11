@@ -21,8 +21,26 @@ class User(Base):
     )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    
+    username: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+        unique=True,
+        default=None,
+    )
+
+    first_name: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        default=None,
+    )
+
+    last_name: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        default=None,
+    )
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -42,4 +60,16 @@ class User(Base):
         Boolean,
         nullable=False,
         default=False,
+    )
+
+    bio: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+        default=None,
+    )
+
+    avatar_url: Mapped[str | None] = mapped_column(
+        String(2048),
+        nullable=True,
+        default=None,
     )

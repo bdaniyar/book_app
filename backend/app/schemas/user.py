@@ -7,7 +7,11 @@ from pydantic import BaseModel, EmailStr
 class UserRead(BaseModel):
     id: uuid.UUID
     email: EmailStr
-    name: str | None = None
+    username: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
     is_active: bool
     is_superuser: bool
     created_at: datetime

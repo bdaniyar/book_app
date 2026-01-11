@@ -24,7 +24,11 @@ type Mode = 'login' | 'register'
 type MeUser = {
   id: string
   email: string
-  name?: string | null
+  username?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  bio?: string | null
+  avatar_url?: string | null
 }
 
 function getInitials(nameOrEmail: string) {
@@ -38,7 +42,6 @@ function getInitials(nameOrEmail: string) {
 export default function ProfilePage() {
   const [mode, setMode] = useState<Mode>('register')
 
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
@@ -50,9 +53,11 @@ export default function ProfilePage() {
   const [meLoading, setMeLoading] = useState(false)
 
   const [editOpen, setEditOpen] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editEmail, setEditEmail] = useState('')
+  const [editUsername, setEditUsername] = useState('')
+  const [editFirstName, setEditFirstName] = useState('')
+  const [editLastName, setEditLastName] = useState('')
   const [editBio, setEditBio] = useState('')
+  const [editEmail, setEditEmail] = useState('')
 
   const [privacy, setPrivacy] = useState<'public' | 'private'>('public')
   const [notifyEmail, setNotifyEmail] = useState(true)
@@ -62,6 +67,8 @@ export default function ProfilePage() {
   const [newPassword2, setNewPassword2] = useState('')
 
   const [editSaving, setEditSaving] = useState(false)
+
+  const [username, setUsername] = useState('')
 
   useEffect(() => {
     // On page load try silent refresh (if refresh cookie exists)
@@ -88,14 +95,17 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!me) return
-    setEditName(me.name ?? '')
+    setEditUsername(me.username ?? '')
+    setEditFirstName(me.first_name ?? '')
+    setEditLastName(me.last_name ?? '')
     setEditEmail(me.email ?? '')
-    // placeholders (no backend yet)
-    setEditBio('')
+    setEditBio(me.bio ?? '')
   }, [me])
 
   const displayName = useMemo(() => {
-    if (me?.name && me.name.trim()) return me.name.trim()
+    const full = `${me?.first_name ?? ''} ${me?.last_name ?? ''}`.trim()
+    if (full) return full
+    if (me?.username && me.username.trim()) return me.username.trim()
     if (me?.email) return me.email
     return 'User'
   }, [me])
@@ -109,7 +119,7 @@ export default function ProfilePage() {
 
     try {
       if (mode === 'register') {
-        const regRes = await authService.register(email, password, name)
+        const regRes = await authService.register(email, password, username)
         if (!regRes.success || !regRes.data?.access_token) {
           setError(regRes.error || 'Registration failed')
           return
@@ -152,7 +162,7 @@ export default function ProfilePage() {
       setMe(null)
       setEmail('')
       setPassword('')
-      setName('')
+      setUsername('')
       setMode('login')
     }
   }
@@ -162,9 +172,13 @@ export default function ProfilePage() {
     setEditSaving(true)
     try {
       const res = await profileService.update({
-        name: editName.trim() ? editName.trim() : null,
+        username: editUsername.trim() ? editUsername.trim() : null,
+        first_name: editFirstName.trim() ? editFirstName.trim() : null,
+        last_name: editLastName.trim() ? editLastName.trim() : null,
+        bio: editBio.trim() ? editBio.trim() : null,
         email: editEmail.trim() ? editEmail.trim() : null,
-      })
+      } as any)
+
       if (!res.success || !res.data) {
         setError(res.error || 'Failed to update profile')
         return
@@ -179,12 +193,12 @@ export default function ProfilePage() {
   // Logged in view (beautiful/original-ish UI)
   if (isAuthed) {
     const user = {
-      name: me?.name?.trim() || displayName,
-      username: me?.email ? `@${me.email.split('@')[0]}` : '@user',
-      avatar: '/placeholder-user.jpg',
-      bio: me?.email
-        ? `Reader profile for ${me.email}. (Bio placeholder — wire this to backend later.)`
-        : 'Avid reader and book enthusiast. Always looking for the next great story to dive into.',
+      name: displayName,
+      username: me?.username ? `@${me.username}` : me?.email ? `@${me.email.split('@')[0]}` : '@user',
+      avatar: me?.avatar_url || '/placeholder-user.jpg',
+      bio:
+        me?.bio?.trim() ||
+        (me?.email ? `Reader profile for ${me.email}.` : 'Avid reader and book enthusiast. Always looking for the next great story to dive into.'),
       joinDate: 'January 2026',
       stats: {
         booksRead: 24,
@@ -205,7 +219,7 @@ export default function ProfilePage() {
             <CardContent className="p-8">
               <div className="flex flex-col md:flex-row gap-8 items-start">
                 <Avatar className="h-32 w-32 border-4 border-primary/10">
-                  <AvatarImage src={user.avatar || '/placeholder.svg'} alt={user.name} />
+                  <AvatarImage src={user.avatar || '/placeholder.svg'} alt={displayName} />
                   <AvatarFallback className="text-3xl">{initials}</AvatarFallback>
                 </Avatar>
 
@@ -276,7 +290,7 @@ export default function ProfilePage() {
                     <DialogContent className="sm:max-w-2xl">
                       <DialogHeader>
                         <DialogTitle>Edit profile</DialogTitle>
-                        <DialogDescription>Поменяй основные данные. Часть настроек пока локальные (без бэкенда).</DialogDescription>
+                        <DialogDescription>Обнови профиль. Настройки ниже пока без бэкенда.</DialogDescription>
                       </DialogHeader>
 
                       <Tabs defaultValue="profile" className="w-full">
@@ -288,13 +302,25 @@ export default function ProfilePage() {
                         <TabsContent value="profile" className="pt-4">
                           <div className="grid gap-4">
                             <div className="grid gap-2">
-                              <Label htmlFor="edit-name">Name</Label>
+                              <Label htmlFor="edit-username">Username</Label>
                               <Input
-                                id="edit-name"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                placeholder="Your name"
+                                id="edit-username"
+                                value={editUsername}
+                                onChange={(e) => setEditUsername(e.target.value)}
+                                placeholder="alexreads"
                               />
+                              <p className="text-xs text-muted-foreground">Должен быть уникальным.</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="grid gap-2">
+                                <Label htmlFor="edit-first">First name</Label>
+                                <Input id="edit-first" value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor="edit-last">Last name</Label>
+                                <Input id="edit-last" value={editLastName} onChange={(e) => setEditLastName(e.target.value)} />
+                              </div>
                             </div>
 
                             <div className="grid gap-2">
@@ -306,16 +332,15 @@ export default function ProfilePage() {
                                 onChange={(e) => setEditEmail(e.target.value)}
                                 placeholder="you@example.com"
                               />
-                              <p className="text-xs text-muted-foreground">Email обновится в БД и будет использоваться для входа.</p>
                             </div>
 
                             <div className="grid gap-2">
-                              <Label htmlFor="edit-bio">Bio (placeholder)</Label>
+                              <Label htmlFor="edit-bio">Bio</Label>
                               <Textarea
                                 id="edit-bio"
                                 value={editBio}
                                 onChange={(e) => setEditBio(e.target.value)}
-                                placeholder="Расскажи о себе (пока не сохраняется на сервере)"
+                                placeholder="Расскажи о себе"
                               />
                             </div>
                           </div>
@@ -404,9 +429,11 @@ export default function ProfilePage() {
                           type="button"
                           variant="outline"
                           onClick={() => {
-                            setEditName(me?.name ?? '')
+                            setEditUsername(me?.username ?? '')
+                            setEditFirstName(me?.first_name ?? '')
+                            setEditLastName(me?.last_name ?? '')
                             setEditEmail(me?.email ?? '')
-                            setEditBio('')
+                            setEditBio(me?.bio ?? '')
                             setEditOpen(false)
                           }}
                           disabled={editSaving}
@@ -532,8 +559,8 @@ export default function ProfilePage() {
             <form onSubmit={onSubmit} className="space-y-4">
               {mode === 'register' ? (
                 <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+                  <Label htmlFor="username">Username</Label>
+                  <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="alexreads" />
                 </div>
               ) : null}
 

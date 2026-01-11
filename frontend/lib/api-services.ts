@@ -27,10 +27,12 @@ export type Review = {
  */
 export type UserProfile = {
     id: string
-    name: string
     email: string
-    avatar?: string
-    bio?: string
+    username?: string | null
+    first_name?: string | null
+    last_name?: string | null
+    bio?: string | null
+    avatar_url?: string | null
     joinedAt: string
     stats: {
         booksRead: number
@@ -45,7 +47,10 @@ export type UserProfile = {
  * Profile Update type
  */
 export type ProfileUpdate = {
-    name?: string | null
+    username?: string | null
+    first_name?: string | null
+    last_name?: string | null
+    bio?: string | null
     email?: string | null
 }
 
@@ -59,7 +64,6 @@ export type LibraryStatus = 'reading' | 'want-to-read' | 'read' | 'favorite'
  */
 export type AuthTokens = {
     access_token: string
-    refresh_token: string
     token_type: string
 }
 
@@ -356,8 +360,8 @@ export const authService = {
     /**
      * Register (sets refresh cookie server-side)
      */
-    register: async (email: string, password: string, name: string) => {
-        return apiClient.post<{ access_token: string; token_type: string }>(API_ENDPOINTS.AUTH.REGISTER, { email, password, name })
+    register: async (email: string, password: string, username: string) => {
+        return apiClient.post<{ access_token: string; token_type: string }>(API_ENDPOINTS.AUTH.REGISTER, { email, password, username })
     },
 
     /**
@@ -378,6 +382,6 @@ export const authService = {
      * Get current user
      */
     me: async () => {
-        return apiClient.get(API_ENDPOINTS.AUTH.ME)
+        return apiClient.get<UserProfile>(API_ENDPOINTS.AUTH.ME)
     },
 }

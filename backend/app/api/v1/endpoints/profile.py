@@ -34,9 +34,27 @@ def update_profile(
                 )
             current_user.email = new_email
 
-    # name change
-    if payload.name is not None:
-        current_user.name = payload.name
+    # username change (ensure unique)
+    if payload.username is not None:
+        new_username = payload.username.strip() or None
+        if new_username != current_user.username:
+            if new_username is not None:
+                existing = db.query(User).filter(User.username == new_username).first()
+                if existing and existing.id != current_user.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="User with this username already exists",
+                    )
+            current_user.username = new_username
+
+    if payload.first_name is not None:
+        current_user.first_name = payload.first_name
+
+    if payload.last_name is not None:
+        current_user.last_name = payload.last_name
+
+    if payload.bio is not None:
+        current_user.bio = payload.bio
 
     db.add(current_user)
     db.commit()

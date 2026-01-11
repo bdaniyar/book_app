@@ -18,7 +18,11 @@ def get_user_by_id(db: Session, user_id: uuid.UUID) -> User | None:
 def create_user(db: Session, data: RegisterRequest) -> User:
     user = User(
         email=str(data.email),
-        name=data.name,
+        username=data.username,
+        first_name=None,
+        last_name=None,
+        bio=None,
+        avatar_url=None,
         hashed_password=hash_password(data.password),
         is_active=True,
         is_superuser=False,
