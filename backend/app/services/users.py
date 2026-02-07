@@ -1,6 +1,8 @@
 import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, status
 
 from app.core.security import hash_password, verify_password
 from app.models.user import User
@@ -13,6 +15,13 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 
 def get_user_by_id(db: Session, user_id: uuid.UUID) -> User | None:
     return db.get(User, user_id)
+
+
+def get_user_by_username(db: Session, username: str) -> User | None:
+    username = (username or "").strip()
+    if not username:
+        return None
+    return db.scalar(select(User).where(User.username == username))
 
 
 def create_user(db: Session, data: RegisterRequest) -> User:
@@ -28,7 +37,15 @@ def create_user(db: Session, data: RegisterRequest) -> User:
         is_superuser=False,
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Could be email or username unique violation (or other constraint).
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User with this email or username already exists",
+        )
     db.refresh(user)
     return user
 

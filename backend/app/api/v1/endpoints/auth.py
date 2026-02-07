@@ -5,7 +5,7 @@ from typing import cast, Literal
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, RegisterRequest, AccessTokenResponse
 from app.schemas.user import UserRead
-from app.services.users import create_user, get_user_by_email
+from app.services.users import create_user, get_user_by_email, get_user_by_username
 from app.models.user import User
 from app.core.security import create_access_token, create_refresh_token
 from app.services.users import authenticate_user
@@ -46,6 +46,14 @@ def register(
             status_code=status.HTTP_409_CONFLICT,
             detail="User with this email already exists",
         )
+
+    if payload.username is not None:
+        existing_username = get_user_by_username(db, payload.username)
+        if existing_username:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User with this username already exists",
+            )
 
     user = create_user(db, payload)
 

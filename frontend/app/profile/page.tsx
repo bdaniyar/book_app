@@ -177,13 +177,13 @@ export default function ProfilePage() {
         last_name: editLastName.trim() ? editLastName.trim() : null,
         bio: editBio.trim() ? editBio.trim() : null,
         email: editEmail.trim() ? editEmail.trim() : null,
-      } as any)
+      })
 
       if (!res.success || !res.data) {
         setError(res.error || 'Failed to update profile')
         return
       }
-      setMe(res.data as any)
+      setMe(res.data)
       setEditOpen(false)
     } finally {
       setEditSaving(false)
@@ -193,7 +193,7 @@ export default function ProfilePage() {
   // Logged in view (beautiful/original-ish UI)
   if (isAuthed) {
     const user = {
-      name: displayName,
+      displayName,
       username: me?.username ? `@${me.username}` : me?.email ? `@${me.email.split('@')[0]}` : '@user',
       avatar: me?.avatar_url || '/placeholder-user.jpg',
       bio:
@@ -226,7 +226,7 @@ export default function ProfilePage() {
                 <div className="flex-1 space-y-4">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-3">
-                      <h1 className="font-sans text-3xl font-bold">{user.name}</h1>
+                      <h1 className="font-sans text-3xl font-bold">{user.displayName}</h1>
                       <Badge variant="secondary" className="rounded-full">
                         <Award className="h-3 w-3 mr-1" />
                         Top Reader

@@ -6,7 +6,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.profile import ProfileUpdateRequest
 from app.schemas.user import UserRead
-from app.services.users import get_user_by_email
+from app.services.users import get_user_by_email, get_user_by_username
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -39,7 +39,7 @@ def update_profile(
         new_username = payload.username.strip() or None
         if new_username != current_user.username:
             if new_username is not None:
-                existing = db.query(User).filter(User.username == new_username).first()
+                existing = get_user_by_username(db, new_username)
                 if existing and existing.id != current_user.id:
                     raise HTTPException(
                         status_code=status.HTTP_409_CONFLICT,
