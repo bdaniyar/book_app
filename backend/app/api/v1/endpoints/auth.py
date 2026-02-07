@@ -118,6 +118,7 @@ def refresh_access_token(request: Request, response: Response) -> AccessTokenRes
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(response: Response) -> Response:
     _clear_refresh_cookie(response)
+    response.status_code = status.HTTP_204_NO_CONTENT
     return response
 
 
