@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.profile import ProfileUpdateRequest
+from app.schemas.profile import ProfileUpdateRequest, ChangePasswordRequest
 from app.schemas.user import UserRead
-from app.services.users import get_user_by_email, get_user_by_username
+from app.services.users import get_user_by_email, get_user_by_username, change_password
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -60,3 +60,13 @@ def update_profile(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.put("/password", status_code=status.HTTP_204_NO_CONTENT)
+def update_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    change_password(db, current_user, payload)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

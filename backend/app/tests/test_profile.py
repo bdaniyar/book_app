@@ -61,3 +61,38 @@ def test_profile_update_conflicts(client):
         headers={"Authorization": f"Bearer {access1}"},
     )
     assert r2.status_code == 409, r2.text
+
+
+def test_change_password_flow(client):
+    access = _register_and_get_access(client, email="pw1@example.com", username="pw1")
+
+    # wrong current password
+    r_bad = client.put(
+        "/api/v1/profile/password",
+        json={
+            "current_password": "wrongpass123",
+            "new_password": "NewPassw0rd!",
+            "new_password2": "NewPassw0rd!",
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r_bad.status_code == 400, r_bad.text
+
+    # correct current password
+    r_ok = client.put(
+        "/api/v1/profile/password",
+        json={
+            "current_password": "Str0ngPassw0rd!",
+            "new_password": "NewPassw0rd!",
+            "new_password2": "NewPassw0rd!",
+        },
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r_ok.status_code == 204, r_ok.text
+
+    # login with new password should work
+    r_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "pw1@example.com", "password": "NewPassw0rd!"},
+    )
+    assert r_login.status_code == 200, r_login.text
