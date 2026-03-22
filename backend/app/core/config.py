@@ -25,6 +25,16 @@ class Settings(BaseSettings):
         True  # in dev: print reset link to logs instead of sending email
     )
 
+    # Email provider (scaffold)
+    EMAIL_PROVIDER: str = "smtp"  # currently supported: 'smtp'
+    EMAIL_FROM: str | None = None
+
+    # SMTP settings (can be SendPulse SMTP or any provider)
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(__file__), "..", "..", ".env"),
         env_ignore_empty=True,

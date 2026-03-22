@@ -28,6 +28,7 @@ from app.services.users import authenticate_user
 from app.api.deps.auth import get_current_user
 from app.core.config import settings
 from app.core.jwt import decode_token
+from app.services.email import EmailMessage, build_email_sender
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -152,10 +153,29 @@ def forgot_password(
     if user:
         token = create_password_reset_token(str(user.id))
         reset_link = f"{settings.FRONTEND_RESET_PASSWORD_URL}?token={token}"
-        if settings.DEV_EMAIL_OUTPUT:
-            # In dev we just print link to logs.
-            print(f"[DEV] Password reset link for {user.email}: {reset_link}")
-        # Production: integrate real email provider here.
+
+        sender = build_email_sender(
+            provider=settings.EMAIL_PROVIDER,
+            dev_output=settings.DEV_EMAIL_OUTPUT,
+            smtp_host=settings.SMTP_HOST,
+            smtp_port=settings.SMTP_PORT,
+            smtp_username=settings.SMTP_USERNAME,
+            smtp_password=settings.SMTP_PASSWORD,
+            from_email=settings.EMAIL_FROM,
+        )
+
+        sender.send(
+            EmailMessage(
+                to=str(user.email),
+                subject="Reset your password",
+                text=(
+                    "You requested a password reset.\n\n"
+                    f"Reset link: {reset_link}\n\n"
+                    "If you did not request this, you can ignore this email."
+                ),
+                html=None,
+            )
+        )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
