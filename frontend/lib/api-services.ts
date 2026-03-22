@@ -55,6 +55,24 @@ export type ProfileUpdate = {
 }
 
 /**
+ * Change Password Payload type
+ */
+export type ChangePasswordPayload = {
+    current_password: string
+    new_password: string
+    new_password2: string
+}
+
+/**
+ * Reset Password Payload type
+ */
+export type ResetPasswordPayload = {
+    token: string
+    new_password: string
+    new_password2: string
+}
+
+/**
  * Library Status type
  */
 export type LibraryStatus = 'reading' | 'want-to-read' | 'read' | 'favorite'
@@ -261,6 +279,13 @@ export const profileService = {
     },
 
     /**
+     * Change password
+     */
+    changePassword: async (data: ChangePasswordPayload) => {
+        return apiClient.put(API_ENDPOINTS.PROFILE.CHANGE_PASSWORD, data)
+    },
+
+    /**
      * Get user stats
      */
     getStats: async () => {
@@ -376,6 +401,20 @@ export const authService = {
      */
     logout: async () => {
         return apiClient.post(API_ENDPOINTS.AUTH.LOGOUT)
+    },
+
+    /**
+     * Forgot password (always returns 204)
+     */
+    forgotPassword: async (email: string) => {
+        return apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email })
+    },
+
+    /**
+     * Reset password using token (returns 204)
+     */
+    resetPassword: async (data: ResetPasswordPayload) => {
+        return apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, data)
     },
 
     /**

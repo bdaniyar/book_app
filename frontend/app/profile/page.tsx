@@ -65,6 +65,8 @@ export default function ProfilePage() {
 
   const [newPassword, setNewPassword] = useState('')
   const [newPassword2, setNewPassword2] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
 
   const [editSaving, setEditSaving] = useState(false)
 
@@ -187,6 +189,54 @@ export default function ProfilePage() {
       setEditOpen(false)
     } finally {
       setEditSaving(false)
+    }
+  }
+
+  const onChangePassword = async () => {
+    setError(null)
+
+    if (!currentPassword.trim() || !newPassword.trim() || !newPassword2.trim()) {
+      setError('Please fill current password and new password fields')
+      return
+    }
+
+    setPasswordSaving(true)
+    try {
+      const res = await profileService.changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password2: newPassword2,
+      })
+
+      if (!res.success) {
+        setError(res.error || 'Failed to change password')
+        return
+      }
+
+      setCurrentPassword('')
+      setNewPassword('')
+      setNewPassword2('')
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
+  const onForgotPassword = async () => {
+    setError(null)
+    if (!email.trim()) {
+      setError('Enter your email above first (the email on your account)')
+      return
+    }
+
+    try {
+      const res = await authService.forgotPassword(email.trim())
+      if (!res.success) {
+        setError(res.error || 'Failed to send reset link')
+        return
+      }
+      setError('If this email exists, a reset link was generated. (Dev: check backend logs)')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to send reset link')
     }
   }
 
@@ -393,8 +443,18 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="rounded-lg border border-border/50 p-4">
-                              <p className="text-sm font-medium mb-2">Change password (placeholder)</p>
+                              <p className="text-sm font-medium mb-2">Change password</p>
                               <div className="grid gap-3">
+                                <div className="grid gap-2">
+                                  <Label htmlFor="current-password">Current password</Label>
+                                  <Input
+                                    id="current-password"
+                                    type="password"
+                                    value={currentPassword}
+                                    onChange={(e) => setCurrentPassword(e.target.value)}
+                                  />
+                                </div>
+
                                 <div className="grid gap-2">
                                   <Label htmlFor="new-password">New password</Label>
                                   <Input
@@ -404,6 +464,7 @@ export default function ProfilePage() {
                                     onChange={(e) => setNewPassword(e.target.value)}
                                   />
                                 </div>
+
                                 <div className="grid gap-2">
                                   <Label htmlFor="new-password2">Repeat new password</Label>
                                   <Input
@@ -413,8 +474,23 @@ export default function ProfilePage() {
                                     onChange={(e) => setNewPassword2(e.target.value)}
                                   />
                                 </div>
+
+                                <div className="flex flex-wrap items-center gap-3 pt-1">
+                                  <Button type="button" onClick={onChangePassword} disabled={passwordSaving}>
+                                    {passwordSaving ? 'Saving…' : 'Update password'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="bg-transparent"
+                                    onClick={onForgotPassword}
+                                  >
+                                    Forgot password
+                                  </Button>
+                                </div>
+
                                 <p className="text-xs text-muted-foreground">
-                                  Для реальной смены пароля нужен endpoint: <code>PUT /api/v1/profile/password</code>.
+                                  Endpoint: <code>PUT /api/v1/profile/password</code>
                                 </p>
                               </div>
                             </div>

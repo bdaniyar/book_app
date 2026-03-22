@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     REFRESH_COOKIE_SECURE: bool = False  # set True in production (https)
     REFRESH_COOKIE_SAMESITE: str = "lax"  # 'lax' works well for local dev
 
+    # Password reset (forgot password)
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    FRONTEND_RESET_PASSWORD_URL: str = "http://localhost:3000/reset-password"
+    DEV_EMAIL_OUTPUT: bool = (
+        True  # in dev: print reset link to logs instead of sending email
+    )
+
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(__file__), "..", "..", ".env"),
         env_ignore_empty=True,

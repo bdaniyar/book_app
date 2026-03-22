@@ -56,6 +56,7 @@ export const API_ENDPOINTS = {
     PROFILE: {
         GET: `${API_URL}/profile`,
         UPDATE: `${API_URL}/profile`,
+        CHANGE_PASSWORD: `${API_URL}/profile/password`,
         STATS: `${API_URL}/profile/stats`,
         READING_ACTIVITY: `${API_URL}/profile/reading-activity`,
     },
@@ -82,6 +83,8 @@ export const API_ENDPOINTS = {
         LOGOUT: `${API_URL}/auth/logout`,
         REFRESH: `${API_URL}/auth/refresh`,
         ME: `${API_URL}/auth/me`,
+        FORGOT_PASSWORD: `${API_URL}/auth/forgot-password`,
+        RESET_PASSWORD: `${API_URL}/auth/reset-password`,
     },
 } as const
 

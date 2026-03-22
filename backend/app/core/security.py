@@ -39,3 +39,15 @@ def create_refresh_token(subject: str) -> str:
         str(settings.JWT_SECRET_KEY),
         algorithm=settings.JWT_ALGORITHM,
     )
+
+
+def create_password_reset_token(subject: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+    )
+    to_encode = {"sub": subject, "type": "password_reset", "exp": expire}
+    return jwt.encode(
+        to_encode,
+        str(settings.JWT_SECRET_KEY),
+        algorithm=settings.JWT_ALGORITHM,
+    )

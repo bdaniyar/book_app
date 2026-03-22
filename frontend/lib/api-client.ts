@@ -119,14 +119,23 @@ async function request<T = any>(
             }
         }
 
-        const data = await response.json()
+        // 204 No Content (or empty response body) should not be parsed as JSON
+        if (response.status === 204) {
+            return {
+                data: undefined,
+                status: response.status,
+                success: true,
+            }
+        }
+
+        const contentType = response.headers.get('content-type') || ''
+        const hasJson = contentType.includes('application/json')
+
+        const data = hasJson ? await response.json().catch(() => undefined) : undefined
 
         if (!response.ok) {
-            throw new ApiError(
-                response.status,
-                data.message || data.error || 'Request failed',
-                data
-            )
+            const message = (data as any)?.message || (data as any)?.error || 'Request failed'
+            throw new ApiError(response.status, message, data)
         }
 
         return {
