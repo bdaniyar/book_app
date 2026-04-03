@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqladmin import Admin
+from app.db.session import engine
+
 
 from app.api.v1.router import api_router
 
@@ -27,3 +30,8 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+admin = Admin(app, engine)
+
+# Register sqladmin views
+from app.admin import admin as _admin_views  # noqa: F401,E402
