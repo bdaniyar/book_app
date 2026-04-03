@@ -9,6 +9,7 @@ from app.db.base import Base
 
 
 class User(Base):
+    __allow_unmapped__ = True
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -73,3 +74,7 @@ class User(Base):
         nullable=True,
         default=None,
     )
+
+    # Admin helper (not stored in DB): plain password field for admin forms.
+    # sqladmin can bind this attribute in forms; we hash it into `hashed_password` in the admin view.
+    password: str | None = None

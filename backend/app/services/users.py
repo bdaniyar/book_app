@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
+from passlib.exc import UnknownHashError
 
 from app.core.security import hash_password, verify_password
 from app.models.user import User
@@ -55,7 +56,12 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
     user = get_user_by_email(db, email)
     if not user:
         return None
-    if not verify_password(password, user.hashed_password):
+    try:
+        ok = verify_password(password, user.hashed_password)
+    except UnknownHashError:
+        # Stored password isn't a valid hash (e.g. edited manually in admin).
+        return None
+    if not ok:
         return None
     return user
 

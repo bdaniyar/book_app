@@ -6,3 +6,5 @@ psycopg[binary]
 pydantic
 pydantic-settings
 python-dotenv
+
+fastapi-mail

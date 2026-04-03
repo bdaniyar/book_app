@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
     FRONTEND_RESET_PASSWORD_URL: str = "http://localhost:3000/reset-password"
     DEV_EMAIL_OUTPUT: bool = (
-        True  # in dev: print reset link to logs instead of sending email
+        False # in dev: print reset link to logs instead of sending email
     )
 
     # Email provider (scaffold)
@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USERNAME: str | None = None
     SMTP_PASSWORD: str | None = None
+
+    # FastAPI-Mail (Gmail SMTP)
+    MAIL_USERNAME: str | None = None
+    MAIL_PASSWORD: str | None = None
+    MAIL_FROM: str | None = None
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str | None = None
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(__file__), "..", "..", ".env"),

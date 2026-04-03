@@ -29,6 +29,7 @@ from app.api.deps.auth import get_current_user
 from app.core.config import settings
 from app.core.jwt import decode_token
 from app.services.email import EmailMessage, build_email_sender
+from app.services.mail import send_text_email, send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -154,28 +155,28 @@ def forgot_password(
         token = create_password_reset_token(str(user.id))
         reset_link = f"{settings.FRONTEND_RESET_PASSWORD_URL}?token={token}"
 
-        sender = build_email_sender(
-            provider=settings.EMAIL_PROVIDER,
-            dev_output=settings.DEV_EMAIL_OUTPUT,
-            smtp_host=settings.SMTP_HOST,
-            smtp_port=settings.SMTP_PORT,
-            smtp_username=settings.SMTP_USERNAME,
-            smtp_password=settings.SMTP_PASSWORD,
-            from_email=settings.EMAIL_FROM,
+        subject = "Reset your password"
+        body = (
+            "You requested a password reset.\n\n"
+            f"Reset link: {reset_link}\n\n"
+            "If you did not request this, you can ignore this email."
         )
 
-        sender.send(
-            EmailMessage(
-                to=str(user.email),
-                subject="Reset your password",
-                text=(
-                    "You requested a password reset.\n\n"
-                    f"Reset link: {reset_link}\n\n"
-                    "If you did not request this, you can ignore this email."
-                ),
-                html=None,
+        if settings.DEV_EMAIL_OUTPUT:
+            sender = build_email_sender(
+                provider=settings.EMAIL_PROVIDER,
+                dev_output=True,
+                smtp_host=settings.SMTP_HOST,
+                smtp_port=settings.SMTP_PORT,
+                smtp_username=settings.SMTP_USERNAME,
+                smtp_password=settings.SMTP_PASSWORD,
+                from_email=settings.EMAIL_FROM,
             )
-        )
+            sender.send(EmailMessage(to=str(user.email), subject=subject, text=body))
+        else:
+            import asyncio
+
+            asyncio.run(send_password_reset_email(to=str(user.email), reset_link=reset_link))
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
