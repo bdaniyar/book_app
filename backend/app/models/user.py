@@ -3,9 +3,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.user_favorite_genre import user_favorite_genres
 
 
 class User(Base):
@@ -73,6 +74,13 @@ class User(Base):
         String(2048),
         nullable=True,
         default=None,
+    )
+
+    favorite_genres = relationship(
+        "Genre",
+        secondary=user_favorite_genres,
+        back_populates="users",
+        lazy="selectin",
     )
 
     # Admin helper (not stored in DB): plain password field for admin forms.
