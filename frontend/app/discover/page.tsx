@@ -1,24 +1,57 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Search, SlidersHorizontal } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { BookCard } from "@/components/book-card"
 import { CategoryChips } from "@/components/category-chips"
 import { FilterPanel } from "@/components/filter-panel"
-import { trendingBooks, recommendedBooks, categories } from "@/lib/books-data"
+import type { Book, Category } from "@/lib/books-data"
+import { categories as fallbackCategories, recommendedBooks, trendingBooks } from "@/lib/books-data"
+import { bookService, categoryService } from "@/lib/api-services"
 
 export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [showFilters, setShowFilters] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [books, setBooks] = useState<Book[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
 
-  // Combine all books
-  const allBooks = [...trendingBooks, ...recommendedBooks]
+  useEffect(() => {
+    let mounted = true
 
-  // Filter books based on search and category
-  const filteredBooks = allBooks.filter((book) => {
+    async function load() {
+      const [booksRes, genresRes] = await Promise.all([
+        bookService.getAll({ limit: 60 }),
+        categoryService.getAll(),
+      ])
+      if (!mounted) return
+      if (booksRes.success && booksRes.data?.length) {
+        setBooks(booksRes.data)
+      } else {
+        setBooks([...trendingBooks, ...recommendedBooks])
+      }
+      if (genresRes.success && genresRes.data) {
+        setCategories(
+          genresRes.data.map((genre: any) => ({
+            id: genre.id,
+            name: genre.name,
+            slug: genre.slug || genre.name.toLowerCase().replace(/\s+/g, "-"),
+          }))
+        )
+      } else {
+        setCategories(fallbackCategories)
+      }
+    }
+
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const filteredBooks = useMemo(() => books.filter((book) => {
     const matchesSearch =
       searchQuery === "" ||
       book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -27,7 +60,7 @@ export default function DiscoverPage() {
     const matchesCategory = !selectedCategory || book.genre === selectedCategory
 
     return matchesSearch && matchesCategory
-  })
+  }), [books, searchQuery, selectedCategory])
 
   return (
     <div className="w-full">
@@ -36,7 +69,7 @@ export default function DiscoverPage() {
         <div className="space-y-4">
           <h1 className="font-sans text-3xl md:text-4xl font-bold">Discover Books</h1>
           <p className="text-muted-foreground text-lg">
-            Explore our collection of {allBooks.length.toLocaleString()} books
+            Explore our collection of {books.length.toLocaleString()} books
           </p>
         </div>
 

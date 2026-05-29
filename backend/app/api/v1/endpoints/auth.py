@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status, Request
 from sqlalchemy.orm import Session
 from typing import cast, Literal
@@ -9,6 +11,7 @@ from app.schemas.auth import (
     AccessTokenResponse,
     ForgotPasswordRequest,
     ResetPasswordRequest,
+    TokenRequest,
 )
 from app.schemas.user import UserRead
 from app.services.users import (
@@ -22,6 +25,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     create_password_reset_token,
+    create_email_verification_token,
     hash_password,
 )
 from app.services.users import authenticate_user
@@ -29,9 +33,37 @@ from app.api.deps.auth import get_current_user
 from app.core.config import settings
 from app.core.jwt import decode_token
 from app.services.email import EmailMessage, build_email_sender
-from app.services.mail import send_text_email, send_password_reset_email
+from app.services.mail import send_password_reset_email
+from app.services.tokens import (
+    get_active_refresh_token,
+    get_usable_email_verification_token,
+    get_usable_password_reset_token,
+    mark_email_verification_used,
+    mark_password_reset_used,
+    revoke_refresh_token,
+    store_email_verification_token,
+    store_password_reset_token,
+    store_refresh_token,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+_RATE_LIMITS: dict[tuple[str, str], list[datetime]] = {}
+
+
+def _rate_limit(request: Request, key: str, *, limit: int, window_seconds: int) -> None:
+    client = request.client.host if request.client else "unknown"
+    bucket = (key, client)
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(seconds=window_seconds)
+    events = [ts for ts in _RATE_LIMITS.get(bucket, []) if ts > window_start]
+    if len(events) >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests, please try again later",
+        )
+    events.append(now)
+    _RATE_LIMITS[bucket] = events
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -78,7 +110,11 @@ def register(
     subject = str(user.id)
     access = create_access_token(subject)
     refresh = create_refresh_token(subject)
+    store_refresh_token(db, user.id, refresh)
     _set_refresh_cookie(response, refresh)
+
+    verification = create_email_verification_token(subject)
+    store_email_verification_token(db, user.id, verification)
 
     return AccessTokenResponse(access_token=access)
 
@@ -89,8 +125,12 @@ def register(
     status_code=status.HTTP_200_OK,
 )
 def login(
-    payload: LoginRequest, response: Response, db: Session = Depends(get_db)
+    payload: LoginRequest,
+    response: Response,
+    request: Request,
+    db: Session = Depends(get_db),
 ) -> AccessTokenResponse:
+    _rate_limit(request, "login", limit=10, window_seconds=60)
     user = authenticate_user(db, str(payload.email), payload.password)
     if not user:
         raise HTTPException(
@@ -101,13 +141,16 @@ def login(
     subject = str(user.id)
     access = create_access_token(subject)
     refresh = create_refresh_token(subject)
+    store_refresh_token(db, user.id, refresh)
     _set_refresh_cookie(response, refresh)
 
     return AccessTokenResponse(access_token=access)
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
-def refresh_access_token(request: Request, response: Response) -> AccessTokenResponse:
+def refresh_access_token(
+    request: Request, response: Response, db: Session = Depends(get_db)
+) -> AccessTokenResponse:
     refresh_token = request.cookies.get(settings.REFRESH_COOKIE_NAME)
     if not refresh_token:
         raise HTTPException(
@@ -126,15 +169,25 @@ def refresh_access_token(request: Request, response: Response) -> AccessTokenRes
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
 
-    # Optionally rotate refresh token (simple rotation without server-side storage)
+    active = get_active_refresh_token(db, refresh_token)
+    if not active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+        )
+
+    revoke_refresh_token(db, refresh_token)
     new_refresh = create_refresh_token(str(subject))
+    store_refresh_token(db, active.user_id, new_refresh)
     _set_refresh_cookie(response, new_refresh)
 
     return AccessTokenResponse(access_token=create_access_token(str(subject)))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(response: Response) -> Response:
+def logout(request: Request, response: Response, db: Session = Depends(get_db)) -> Response:
+    refresh_token = request.cookies.get(settings.REFRESH_COOKIE_NAME)
+    if refresh_token:
+        revoke_refresh_token(db, refresh_token)
     _clear_refresh_cookie(response)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
@@ -147,12 +200,16 @@ def me(current_user: User = Depends(get_current_user)) -> User:
 
 @router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
 def forgot_password(
-    payload: ForgotPasswordRequest, db: Session = Depends(get_db)
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
 ) -> Response:
+    _rate_limit(request, "forgot-password", limit=5, window_seconds=300)
     # Always return 204 to avoid leaking whether user exists.
     user = get_user_by_email(db, str(payload.email))
     if user:
         token = create_password_reset_token(str(user.id))
+        store_password_reset_token(db, user.id, token)
         reset_link = f"{settings.FRONTEND_RESET_PASSWORD_URL}?token={token}"
 
         subject = "Reset your password"
@@ -223,8 +280,41 @@ def reset_password(
             detail="Invalid reset token",
         )
 
+    reset_row = get_usable_password_reset_token(db, payload.token)
+    if not reset_row or reset_row.user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token",
+        )
+
     user.hashed_password = hash_password(payload.new_password)
+    mark_password_reset_used(db, reset_row)
     db.add(user)
     db.commit()
     db.refresh(user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
+def verify_email(payload: TokenRequest, db: Session = Depends(get_db)) -> Response:
+    token_payload = decode_token(payload.token)
+    if token_payload.get("type") != "email_verification":
+        raise HTTPException(status_code=400, detail="Invalid verification token")
+    subject = token_payload.get("sub")
+    if not subject:
+        raise HTTPException(status_code=400, detail="Invalid verification token")
+    try:
+        import uuid as _uuid
+
+        user_id = _uuid.UUID(str(subject))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid verification token")
+    user = get_user_by_id(db, user_id)
+    token_row = get_usable_email_verification_token(db, payload.token)
+    if not user or not token_row or token_row.user_id != user.id:
+        raise HTTPException(status_code=400, detail="Invalid verification token")
+    user.email_verified = True
+    mark_email_verification_used(db, token_row)
+    db.add(user)
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

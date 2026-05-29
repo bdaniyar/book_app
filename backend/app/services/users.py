@@ -36,6 +36,7 @@ def create_user(db: Session, data: RegisterRequest) -> User:
         avatar_url=None,
         hashed_password=hash_password(data.password),
         is_active=True,
+        email_verified=False,
         is_superuser=False,
     )
     db.add(user)

@@ -1,17 +1,49 @@
 "use client"
 
 import type React from "react"
+import { useEffect, useState } from "react"
 import { BookCard } from "@/components/book-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BookOpen, BookMarked, Clock, Heart } from "lucide-react"
-import { trendingBooks, recommendedBooks } from "@/lib/books-data"
+import type { Book } from "@/lib/books-data"
+import { recommendedBooks, trendingBooks } from "@/lib/books-data"
+import { libraryService } from "@/lib/api-services"
 
 export default function LibraryPage() {
-  // Mock saved books - in a real app, this would come from a database or state management
-  const savedBooks = [trendingBooks[0], trendingBooks[2], recommendedBooks[0], recommendedBooks[1]]
-  const currentlyReading = [trendingBooks[1]]
-  const wantToRead = [trendingBooks[3], recommendedBooks[2]]
-  const favorites = [trendingBooks[0], recommendedBooks[0]]
+  const [savedBooks, setSavedBooks] = useState<Book[]>([])
+  const [currentlyReading, setCurrentlyReading] = useState<Book[]>([])
+  const [wantToRead, setWantToRead] = useState<Book[]>([])
+  const [favorites, setFavorites] = useState<Book[]>([])
+
+  useEffect(() => {
+    let mounted = true
+
+    async function load() {
+      const [all, reading, want, favs] = await Promise.all([
+        libraryService.getAll(),
+        libraryService.getReading(),
+        libraryService.getWantToRead(),
+        libraryService.getFavorites(),
+      ])
+      if (!mounted) return
+      if (all.success && all.data?.length) {
+        setSavedBooks(all.data)
+        if (reading.success && reading.data) setCurrentlyReading(reading.data)
+        if (want.success && want.data) setWantToRead(want.data)
+        if (favs.success && favs.data) setFavorites(favs.data)
+      } else {
+        setSavedBooks([trendingBooks[0], trendingBooks[2], recommendedBooks[0], recommendedBooks[1]].filter(Boolean))
+        setCurrentlyReading([trendingBooks[1]].filter(Boolean))
+        setWantToRead([trendingBooks[3], recommendedBooks[2]].filter(Boolean))
+        setFavorites([trendingBooks[0], recommendedBooks[0]].filter(Boolean))
+      }
+    }
+
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   return (
     <div className="w-full">

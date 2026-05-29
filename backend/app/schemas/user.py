@@ -13,6 +13,7 @@ class UserRead(BaseModel):
     bio: str | None = None
     avatar_url: str | None = None
     is_active: bool
+    email_verified: bool = False
     is_superuser: bool
     created_at: datetime
     updated_at: datetime

@@ -4,9 +4,14 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { BookCard } from "@/components/book-card"
 import { CategoryChips } from "@/components/category-chips"
-import { trendingBooks, categories } from "@/lib/books-data"
+import { getCategories, getTrendingBooks } from "@/lib/public-api"
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [trendingBooks, categories] = await Promise.all([
+    getTrendingBooks(12),
+    getCategories(),
+  ])
+
   return (
     <div className="w-full">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12 max-w-7xl">
@@ -50,11 +55,15 @@ export default function HomePage() {
               <p className="text-muted-foreground mt-1">Most popular books this week</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-            {trendingBooks.map((book) => (
-              <BookCard key={book.id} book={book} />
-            ))}
-          </div>
+          {trendingBooks.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+              {trendingBooks.map((book) => (
+                <BookCard key={book.id} book={book} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">No books are available yet.</p>
+          )}
         </section>
 
         {/* CTA Section */}

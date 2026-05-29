@@ -29,8 +29,8 @@ export const API_ENDPOINTS = {
 
     // Categories
     CATEGORIES: {
-        LIST: `${API_URL}/categories`,
-        GET: (id: string) => `${API_URL}/categories/${id}`,
+        LIST: `${API_URL}/genres`,
+        GET: (id: string) => `${API_URL}/genres/${id}`,
     },
 
     // User Library

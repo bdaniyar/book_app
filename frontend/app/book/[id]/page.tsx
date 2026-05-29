@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { BookCard } from "@/components/book-card"
 import { ReviewList } from "@/components/review-list"
-import { trendingBooks, recommendedBooks } from "@/lib/books-data"
+import { getBook, getSimilarBooks } from "@/lib/public-api"
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -15,17 +15,13 @@ type PageProps = {
 export default async function BookDetailPage({ params }: PageProps) {
   const { id } = await params
 
-  // Find book in both arrays
-  const book = [...trendingBooks, ...recommendedBooks].find((b) => b.id === id)
+  const book = await getBook(id)
 
   if (!book) {
     notFound()
   }
 
-  // Get similar books (same genre, excluding current book)
-  const similarBooks = [...trendingBooks, ...recommendedBooks]
-    .filter((b) => b.genre === book.genre && b.id !== book.id)
-    .slice(0, 4)
+  const similarBooks = await getSimilarBooks(book.id, 4)
 
   return (
     <div className="w-full">

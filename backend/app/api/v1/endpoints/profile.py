@@ -1,14 +1,18 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
 from app.db.session import get_db
 from app.models.genre import Genre
+from app.models.review import Review
 from app.models.user import User
+from app.models.user_book import ReadingStatus, UserBook
 from app.schemas.genre import FavoriteGenresUpdateRequest, GenreRead
 from app.schemas.profile import ProfileUpdateRequest, ChangePasswordRequest
+from app.schemas.stats import ProfileStatsRead, ReadingActivityRead
 from app.schemas.user import UserRead
 from app.services.users import get_user_by_email, get_user_by_username, change_password
 
@@ -74,6 +78,61 @@ def update_password(
 ) -> Response:
     change_password(db, current_user, payload)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/stats", response_model=ProfileStatsRead)
+def get_profile_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProfileStatsRead:
+    books_read = db.scalar(
+        select(func.count(UserBook.id)).where(
+            UserBook.user_id == current_user.id,
+            UserBook.status == ReadingStatus.read,
+        )
+    ) or 0
+    pages_read = db.scalar(
+        select(func.coalesce(func.sum(UserBook.progress_pages), 0)).where(
+            UserBook.user_id == current_user.id
+        )
+    ) or 0
+    avg_rating = db.scalar(
+        select(func.coalesce(func.avg(Review.rating), 0)).where(
+            Review.user_id == current_user.id
+        )
+    ) or 0
+    reviews_written = db.scalar(
+        select(func.count(Review.id)).where(Review.user_id == current_user.id)
+    ) or 0
+    return ProfileStatsRead(
+        booksRead=int(books_read),
+        pagesRead=int(pages_read),
+        avgRating=round(float(avg_rating), 1),
+        reviewsWritten=int(reviews_written),
+        readingStreak=0,
+    )
+
+
+@router.get("/reading-activity", response_model=list[ReadingActivityRead])
+def get_reading_activity(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[ReadingActivityRead]:
+    entries = (
+        db.query(UserBook)
+        .filter(UserBook.user_id == current_user.id)
+        .order_by(UserBook.updated_at.desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        ReadingActivityRead(
+            date=entry.updated_at,
+            action=f"marked as {entry.status.value}",
+            title=entry.book.title,
+        )
+        for entry in entries
+    ]
 
 
 @router.get("/favorite-genres", response_model=list[GenreRead])

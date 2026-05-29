@@ -31,3 +31,10 @@ class Genre(Base):
         back_populates="favorite_genres",
         lazy="selectin",
     )
+
+    books = relationship(
+        "Book",
+        secondary="book_genres",
+        back_populates="genres",
+        lazy="selectin",
+    )

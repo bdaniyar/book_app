@@ -134,7 +134,13 @@ async function request<T = any>(
         const data = hasJson ? await response.json().catch(() => undefined) : undefined
 
         if (!response.ok) {
-            const message = (data as any)?.message || (data as any)?.error || 'Request failed'
+            const detail = (data as any)?.detail
+            const message =
+                (typeof detail === 'string' ? detail : undefined) ||
+                (Array.isArray(detail) ? detail.map((item) => item.msg || item.message).filter(Boolean).join(', ') : undefined) ||
+                (data as any)?.message ||
+                (data as any)?.error ||
+                'Request failed'
             throw new ApiError(response.status, message, data)
         }
 

@@ -2,14 +2,17 @@ import { Sparkles, TrendingUp, Users, Zap } from "lucide-react"
 import { BookCard } from "@/components/book-card"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { recommendedBooks, trendingBooks } from "@/lib/books-data"
+import { getRecommendedBooks, getTrendingBooks } from "@/lib/public-api"
 
-export default function RecommendationsPage() {
-  // Mock personalized recommendations based on different criteria
-  const forYou = [recommendedBooks[0], recommendedBooks[1], trendingBooks[0], trendingBooks[2]]
-  const trending = [trendingBooks[1], trendingBooks[4], trendingBooks[5]]
-  const basedOnReading = [recommendedBooks[2], recommendedBooks[3], trendingBooks[3]]
-  const popularInGenre = [trendingBooks[0], trendingBooks[2], recommendedBooks[0]]
+export default async function RecommendationsPage() {
+  const [recommendedBooks, trendingBooks] = await Promise.all([
+    getRecommendedBooks(12),
+    getTrendingBooks(12),
+  ])
+  const forYou = recommendedBooks.slice(0, 4)
+  const trending = trendingBooks.slice(0, 4)
+  const basedOnReading = recommendedBooks.slice(4, 8)
+  const popularInGenre = trendingBooks.slice(4, 8)
 
   return (
     <div className="w-full">

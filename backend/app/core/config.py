@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     EMAIL_PROVIDER: str = "smtp"  # currently supported: 'smtp'
     EMAIL_FROM: str | None = None
 
+    # CORS
+    FRONTEND_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
+
     # SMTP settings (can be SendPulse SMTP or any provider)
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587

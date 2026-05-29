@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.genre import Genre
+from app.models.user import User
+from app.api.deps.auth import get_current_superuser
 from app.schemas.genre import GenreRead
 
 router = APIRouter(prefix="/genres", tags=["genres"])
@@ -16,8 +18,11 @@ def list_genres(db: Session = Depends(get_db)) -> list[Genre]:
 
 
 @router.post("", response_model=GenreRead, status_code=status.HTTP_201_CREATED)
-def create_genre(name: str, db: Session = Depends(get_db)) -> Genre:
-    # Minimal admin-ish endpoint for now; can be locked down later.
+def create_genre(
+    name: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_superuser),
+) -> Genre:
     name = (name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")

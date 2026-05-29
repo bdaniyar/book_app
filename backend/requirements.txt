@@ -6,5 +6,12 @@ psycopg[binary]
 pydantic
 pydantic-settings
 python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt<4
+email-validator
+sqladmin
+pytest
+httpx<0.25
 
 fastapi-mail

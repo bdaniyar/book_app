@@ -44,6 +44,7 @@ class User(Base):
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -81,6 +82,11 @@ class User(Base):
         secondary=user_favorite_genres,
         back_populates="users",
         lazy="selectin",
+    )
+
+    reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
+    library_entries = relationship(
+        "UserBook", back_populates="user", cascade="all, delete-orphan"
     )
 
     # Admin helper (not stored in DB): plain password field for admin forms.
