@@ -26,6 +26,8 @@ def book_to_read(book: Book) -> BookRead:
         published_year=book.published_year,
         pages=book.pages,
         isbn=book.isbn,
+        external_source=book.external_source,
+        external_id=book.external_id,
     )
 
 
@@ -63,6 +65,8 @@ def create_book(db: Session, payload: BookCreateRequest) -> Book:
         author=author,
         description=payload.description or "",
         isbn=payload.isbn,
+        external_source=payload.external_source,
+        external_id=payload.external_id,
         cover_url=payload.cover_url,
         pages=payload.pages,
         published_year=payload.published_year,
@@ -83,6 +87,10 @@ def update_book(db: Session, book: Book, payload: BookUpdateRequest) -> Book:
         book.description = payload.description
     if payload.isbn is not None:
         book.isbn = payload.isbn
+    if payload.external_source is not None:
+        book.external_source = payload.external_source
+    if payload.external_id is not None:
+        book.external_id = payload.external_id
     if payload.cover_url is not None:
         book.cover_url = payload.cover_url
     if payload.pages is not None:

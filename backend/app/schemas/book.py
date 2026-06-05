@@ -15,6 +15,8 @@ class BookRead(BaseModel):
     published_year: int | None = Field(default=None, serialization_alias="publishedYear")
     pages: int | None = None
     isbn: str | None = None
+    external_source: str | None = Field(default=None, serialization_alias="externalSource")
+    external_id: str | None = Field(default=None, serialization_alias="externalId")
 
     model_config = {"populate_by_name": True}
 
@@ -24,6 +26,8 @@ class BookCreateRequest(BaseModel):
     author: str = Field(min_length=1, max_length=255)
     description: str = ""
     isbn: str | None = Field(default=None, max_length=32)
+    external_source: str | None = Field(default=None, max_length=64)
+    external_id: str | None = Field(default=None, max_length=128)
     cover_url: str | None = Field(default=None, max_length=2048)
     pages: int | None = Field(default=None, ge=1)
     published_year: int | None = Field(default=None, ge=0, le=3000)
@@ -35,6 +39,8 @@ class BookUpdateRequest(BaseModel):
     author: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     isbn: str | None = Field(default=None, max_length=32)
+    external_source: str | None = Field(default=None, max_length=64)
+    external_id: str | None = Field(default=None, max_length=128)
     cover_url: str | None = Field(default=None, max_length=2048)
     pages: int | None = Field(default=None, ge=1)
     published_year: int | None = Field(default=None, ge=0, le=3000)

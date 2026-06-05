@@ -40,3 +40,37 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 cd backend
 pytest
 ```
+
+## Import real book data
+
+Run migrations before importing because imported books store their external source/id:
+
+```bash
+alembic upgrade head
+```
+
+### Open Library catalog data
+
+Open Library is the easiest source for app catalog data because it has a public API and does not require an API key.
+
+```bash
+python3 -m app.scripts.import_books openlibrary \
+  --subject fiction \
+  --subject fantasy \
+  --subject science_fiction \
+  --limit 50
+```
+
+Use `--update-existing` if you want to refresh already imported rows.
+
+### Goodreads/Goodbooks CSV for ML experiments
+
+Download a `books.csv` style dataset locally, then import it:
+
+```bash
+python3 -m app.scripts.import_books goodreads-csv /path/to/books.csv \
+  --genre Imported \
+  --limit 1000
+```
+
+This path is useful for recommendation ML because those datasets often include ratings/interactions that can be used for offline experiments.

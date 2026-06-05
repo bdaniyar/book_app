@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,6 +11,9 @@ from app.models.book_genre import book_genres
 
 class Book(Base):
     __tablename__ = "books"
+    __table_args__ = (
+        UniqueConstraint("external_source", "external_id", name="uq_books_external_source_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -18,6 +21,8 @@ class Book(Base):
     title: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     isbn: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
+    external_source: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    external_id: Mapped[str | None] = mapped_column(String(128), nullable=True, default=None)
     cover_url: Mapped[str | None] = mapped_column(String(2048), nullable=True, default=None)
     pages: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     published_year: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
