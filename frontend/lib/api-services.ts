@@ -77,6 +77,25 @@ export type ResetPasswordPayload = {
  */
 export type LibraryStatus = 'reading' | 'want-to-read' | 'read' | 'favorite'
 
+export type ProfileStats = {
+    booksRead: number
+    pagesRead: number
+    avgRating: number
+    reviewsWritten: number
+    readingStreak: number
+}
+
+export type ReadingActivity = {
+    date: string
+    action: string
+    title: string
+}
+
+export type InferredGenre = {
+    name: string
+    count: number
+}
+
 /**
  * Auth Tokens type
  */
@@ -192,6 +211,13 @@ export const libraryService = {
     },
 
     /**
+     * Get read books
+     */
+    getRead: async () => {
+        return apiClient.get<Book[]>(API_ENDPOINTS.LIBRARY.GET_READ)
+    },
+
+    /**
      * Get favorite books
      */
     getFavorites: async () => {
@@ -289,14 +315,21 @@ export const profileService = {
      * Get user stats
      */
     getStats: async () => {
-        return apiClient.get(API_ENDPOINTS.PROFILE.STATS)
+        return apiClient.get<ProfileStats>(API_ENDPOINTS.PROFILE.STATS)
     },
 
     /**
      * Get reading activity
      */
     getReadingActivity: async () => {
-        return apiClient.get(API_ENDPOINTS.PROFILE.READING_ACTIVITY)
+        return apiClient.get<ReadingActivity[]>(API_ENDPOINTS.PROFILE.READING_ACTIVITY)
+    },
+
+    /**
+     * Get favorite genres inferred from reading/read/favorite library books
+     */
+    getInferredGenres: async () => {
+        return apiClient.get<InferredGenre[]>(API_ENDPOINTS.PROFILE.INFERRED_GENRES)
     },
 }
 

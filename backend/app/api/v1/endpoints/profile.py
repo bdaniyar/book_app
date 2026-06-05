@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
 from app.db.session import get_db
+from app.models.book import Book
+from app.models.book_genre import book_genres
 from app.models.genre import Genre
 from app.models.review import Review
 from app.models.user import User
@@ -92,8 +94,23 @@ def get_profile_stats(
         )
     ) or 0
     pages_read = db.scalar(
-        select(func.coalesce(func.sum(UserBook.progress_pages), 0)).where(
-            UserBook.user_id == current_user.id
+        select(
+            func.coalesce(
+                func.sum(
+                    func.coalesce(
+                        func.nullif(UserBook.progress_pages, 0),
+                        Book.pages,
+                        0,
+                    )
+                ),
+                0,
+            )
+        )
+        .select_from(UserBook)
+        .join(Book, Book.id == UserBook.book_id)
+        .where(
+            UserBook.user_id == current_user.id,
+            UserBook.status.in_([ReadingStatus.reading, ReadingStatus.read]),
         )
     ) or 0
     avg_rating = db.scalar(
@@ -133,6 +150,28 @@ def get_reading_activity(
         )
         for entry in entries
     ]
+
+
+@router.get("/inferred-genres")
+def get_inferred_genres(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, int | str]]:
+    rows = db.execute(
+        select(Genre.name, func.count(UserBook.id).label("count"))
+        .join(book_genres, book_genres.c.genre_id == Genre.id)
+        .join(UserBook, UserBook.book_id == book_genres.c.book_id)
+        .where(
+            UserBook.user_id == current_user.id,
+            UserBook.status.in_(
+                [ReadingStatus.reading, ReadingStatus.read, ReadingStatus.favorite]
+            ),
+        )
+        .group_by(Genre.name)
+        .order_by(func.count(UserBook.id).desc(), Genre.name.asc())
+        .limit(8)
+    ).all()
+    return [{"name": name, "count": int(count)} for name, count in rows]
 
 
 @router.get("/favorite-genres", response_model=list[GenreRead])

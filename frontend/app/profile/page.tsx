@@ -9,12 +9,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Award, BookOpen, Calendar, Settings, Star } from 'lucide-react'
+import { Award, BookOpen, Calendar, Clock, Settings, Star } from 'lucide-react'
 
 import { BookCard } from '@/components/book-card'
-import { authService, profileService } from '@/lib/api-services'
+import {
+  authService,
+  libraryService,
+  profileService,
+  type InferredGenre,
+  type ProfileStats,
+  type ReadingActivity,
+} from '@/lib/api-services'
 import { clearSession, setAccessToken } from '@/lib/auth-storage'
-import { trendingBooks } from '@/lib/books-data'
+import type { Book } from '@/lib/books-data'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -29,6 +36,15 @@ type MeUser = {
   last_name?: string | null
   bio?: string | null
   avatar_url?: string | null
+  created_at?: string
+}
+
+const emptyStats: ProfileStats = {
+  booksRead: 0,
+  pagesRead: 0,
+  avgRating: 0,
+  reviewsWritten: 0,
+  readingStreak: 0,
 }
 
 function getInitials(nameOrEmail: string) {
@@ -71,6 +87,29 @@ export default function ProfilePage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const [username, setUsername] = useState('')
+  const [stats, setStats] = useState<ProfileStats>(emptyStats)
+  const [activity, setActivity] = useState<ReadingActivity[]>([])
+  const [recentlyRead, setRecentlyRead] = useState<Book[]>([])
+  const [favoriteGenres, setFavoriteGenres] = useState<InferredGenre[]>([])
+  const [dashboardLoading, setDashboardLoading] = useState(false)
+
+  const loadDashboard = async () => {
+    setDashboardLoading(true)
+    try {
+      const [statsRes, activityRes, readRes, genreRes] = await Promise.all([
+        profileService.getStats(),
+        profileService.getReadingActivity(),
+        libraryService.getRead(),
+        profileService.getInferredGenres(),
+      ])
+      setStats(statsRes.success && statsRes.data ? statsRes.data : emptyStats)
+      setActivity(activityRes.success && activityRes.data ? activityRes.data : [])
+      setRecentlyRead(readRes.success && readRes.data ? readRes.data.slice(0, 6) : [])
+      setFavoriteGenres(genreRes.success && genreRes.data ? genreRes.data : [])
+    } finally {
+      setDashboardLoading(false)
+    }
+  }
 
   useEffect(() => {
     // On page load try silent refresh (if refresh cookie exists)
@@ -85,6 +124,7 @@ export default function ProfilePage() {
           const res = await authService.me()
           if (res.success) {
             setMe(res.data as any)
+            await loadDashboard()
           }
         }
       } finally {
@@ -142,6 +182,7 @@ export default function ProfilePage() {
       const meRes = await authService.me()
       if (meRes.success && meRes.data) {
         setMe(meRes.data as any)
+        await loadDashboard()
       } else {
         setMe(null)
         setError(meRes.error || 'Failed to load profile')
@@ -166,6 +207,10 @@ export default function ProfilePage() {
       setPassword('')
       setUsername('')
       setMode('login')
+      setStats(emptyStats)
+      setActivity([])
+      setRecentlyRead([])
+      setFavoriteGenres([])
     }
   }
 
@@ -249,17 +294,17 @@ export default function ProfilePage() {
       bio:
         me?.bio?.trim() ||
         (me?.email ? `Reader profile for ${me.email}.` : 'Avid reader and book enthusiast. Always looking for the next great story to dive into.'),
-      joinDate: 'January 2026',
+      joinDate: me?.created_at
+        ? new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date(me.created_at))
+        : 'January 2026',
       stats: {
-        booksRead: 24,
-        reviews: 15,
-        followers: 38,
-        following: 42,
+        booksRead: stats.booksRead,
+        reviews: stats.reviewsWritten,
+        pagesRead: stats.pagesRead,
+        avgRating: stats.avgRating,
+        readingStreak: stats.readingStreak,
       },
     }
-
-    const recentlyRead = [trendingBooks[0], trendingBooks[1], trendingBooks[2]].filter(Boolean)
-    const favoriteGenres = ['Fiction', 'Mystery', 'Science Fiction', 'Biography']
 
     return (
       <div className="w-full">
@@ -284,6 +329,11 @@ export default function ProfilePage() {
                       {meLoading ? (
                         <Badge variant="outline" className="rounded-full">
                           Loading…
+                        </Badge>
+                      ) : null}
+                      {dashboardLoading ? (
+                        <Badge variant="outline" className="rounded-full">
+                          Syncing stats…
                         </Badge>
                       ) : null}
                     </div>
@@ -315,13 +365,13 @@ export default function ProfilePage() {
                     </div>
                     <Separator orientation="vertical" className="h-12" />
                     <div className="text-center">
-                      <div className="font-bold text-2xl">{user.stats.followers}</div>
-                      <div className="text-sm text-muted-foreground">Followers</div>
+                      <div className="font-bold text-2xl">{user.stats.pagesRead.toLocaleString()}</div>
+                      <div className="text-sm text-muted-foreground">Pages</div>
                     </div>
                     <Separator orientation="vertical" className="h-12" />
                     <div className="text-center">
-                      <div className="font-bold text-2xl">{user.stats.following}</div>
-                      <div className="text-sm text-muted-foreground">Following</div>
+                      <div className="font-bold text-2xl">{user.stats.avgRating.toFixed(1)}</div>
+                      <div className="text-sm text-muted-foreground">Avg Rating</div>
                     </div>
                   </div>
 
@@ -541,10 +591,13 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">2026 Reading Goal</span>
-                    <span className="font-semibold">24 books</span>
+                    <span className="font-semibold">{user.stats.booksRead}/30 books</span>
                   </div>
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: '80%' }} />
+                    <div
+                      className="h-full bg-primary rounded-full"
+                      style={{ width: `${Math.min(100, Math.round((user.stats.booksRead / 30) * 100))}%` }}
+                    />
                   </div>
                 </div>
 
@@ -553,19 +606,38 @@ export default function ProfilePage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Pages Read</span>
-                    <span className="font-semibold">7,842</span>
+                    <span className="font-semibold">{user.stats.pagesRead.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Avg. Rating</span>
                     <div className="flex items-center gap-1">
                       <Star className="h-4 w-4 fill-accent text-accent" />
-                      <span className="font-semibold">4.3</span>
+                      <span className="font-semibold">{user.stats.avgRating.toFixed(1)}</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Reading Streak</span>
-                    <span className="font-semibold">7 days</span>
+                    <span className="font-semibold">{user.stats.readingStreak} days</span>
                   </div>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  {activity.length > 0 ? (
+                    activity.slice(0, 5).map((item) => (
+                      <div key={`${item.date}-${item.title}`} className="flex items-start gap-3 rounded-lg bg-muted/40 p-3">
+                        <Clock className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{item.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.action.replaceAll('-', ' ')} ·{' '}
+                            {new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(item.date))}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No reading activity yet.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -577,11 +649,18 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {favoriteGenres.map((genre) => (
-                    <Badge key={genre} variant="secondary" className="px-4 py-2 text-sm rounded-full">
-                      {genre}
+                  {favoriteGenres.length > 0 ? favoriteGenres.map((genre) => (
+                    <Badge key={genre.name} variant="secondary" className="px-4 py-2 text-sm rounded-full">
+                      {genre.name}
+                      <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-xs text-muted-foreground">
+                        {genre.count}
+                      </span>
                     </Badge>
-                  ))}
+                  )) : (
+                    <p className="text-sm text-muted-foreground">
+                      Add books as Reading, Read, or Favorite to build this automatically.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -595,11 +674,17 @@ export default function ProfilePage() {
                 View All
               </Button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-              {recentlyRead.map((book) => (
-                <BookCard key={(book as any).id} book={book as any} />
-              ))}
-            </div>
+            {recentlyRead.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+                {recentlyRead.map((book) => (
+                  <BookCard key={book.id} book={book} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                Mark a book as read and it will appear here.
+              </div>
+            )}
           </section>
         </div>
       </div>

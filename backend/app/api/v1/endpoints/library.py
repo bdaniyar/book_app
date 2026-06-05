@@ -67,6 +67,14 @@ def get_favorites(
     return _books_for_status(db, current_user, ReadingStatus.favorite)
 
 
+@router.get("/read", response_model=list[BookRead])
+def get_read(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[BookRead]:
+    return _books_for_status(db, current_user, ReadingStatus.read)
+
+
 @router.post("/add", response_model=BookRead)
 def add_book(
     payload: LibraryAddRequest,

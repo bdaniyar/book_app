@@ -15,8 +15,11 @@ export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [showFilters, setShowFilters] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [minRating, setMinRating] = useState(0)
+  const [minYear, setMinYear] = useState(1900)
   const [books, setBooks] = useState<Book[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let mounted = true
@@ -33,16 +36,22 @@ export default function DiscoverPage() {
         setBooks([...trendingBooks, ...recommendedBooks])
       }
       if (genresRes.success && genresRes.data) {
-        setCategories(
-          genresRes.data.map((genre: any) => ({
+        const nextCategories = genresRes.data.map((genre: any) => ({
             id: genre.id,
             name: genre.name,
             slug: genre.slug || genre.name.toLowerCase().replace(/\s+/g, "-"),
           }))
-        )
+        setCategories(nextCategories)
+        const params = new URLSearchParams(window.location.search)
+        const categorySlug = params.get("category")
+        if (categorySlug) {
+          const match = nextCategories.find((category) => category.slug === categorySlug)
+          if (match) setSelectedCategory(match.name)
+        }
       } else {
         setCategories(fallbackCategories)
       }
+      setLoading(false)
     }
 
     load()
@@ -58,9 +67,11 @@ export default function DiscoverPage() {
       book.author.toLowerCase().includes(searchQuery.toLowerCase())
 
     const matchesCategory = !selectedCategory || book.genre === selectedCategory
+    const matchesRating = book.rating >= minRating
+    const matchesYear = !book.publishedYear || book.publishedYear >= minYear
 
-    return matchesSearch && matchesCategory
-  }), [books, searchQuery, selectedCategory])
+    return matchesSearch && matchesCategory && matchesRating && matchesYear
+  }), [books, searchQuery, selectedCategory, minRating, minYear])
 
   return (
     <div className="w-full">
@@ -69,7 +80,7 @@ export default function DiscoverPage() {
         <div className="space-y-4">
           <h1 className="font-sans text-3xl md:text-4xl font-bold">Discover Books</h1>
           <p className="text-muted-foreground text-lg">
-            Explore our collection of {books.length.toLocaleString()} books
+            {loading ? "Loading the catalog..." : `Explore our collection of ${books.length.toLocaleString()} books`}
           </p>
         </div>
 
@@ -102,13 +113,21 @@ export default function DiscoverPage() {
             selectedCategory={selectedCategory}
             onCategoryChange={setSelectedCategory}
             categories={categories}
+            minRating={minRating}
+            onMinRatingChange={setMinRating}
+            minYear={minYear}
+            onMinYearChange={setMinYear}
           />
         )}
 
         {/* Categories */}
         <div className="space-y-4">
           <h2 className="font-sans text-xl font-semibold">Browse by Genre</h2>
-          <CategoryChips categories={categories} />
+          <CategoryChips
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onCategorySelect={setSelectedCategory}
+          />
         </div>
 
         {/* Results */}
@@ -117,12 +136,14 @@ export default function DiscoverPage() {
             <p className="text-muted-foreground">
               {filteredBooks.length} {filteredBooks.length === 1 ? "book" : "books"} found
             </p>
-            {(searchQuery || selectedCategory) && (
+            {(searchQuery || selectedCategory || minRating > 0 || minYear > 1900) && (
               <Button
                 variant="ghost"
                 onClick={() => {
                   setSearchQuery("")
                   setSelectedCategory(null)
+                  setMinRating(0)
+                  setMinYear(1900)
                 }}
               >
                 Clear filters

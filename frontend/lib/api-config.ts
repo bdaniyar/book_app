@@ -38,6 +38,7 @@ export const API_ENDPOINTS = {
         GET_ALL: `${API_URL}/library`,
         GET_READING: `${API_URL}/library/reading`,
         GET_WANT_TO_READ: `${API_URL}/library/want-to-read`,
+        GET_READ: `${API_URL}/library/read`,
         GET_FAVORITES: `${API_URL}/library/favorites`,
         ADD_BOOK: `${API_URL}/library/add`,
         REMOVE_BOOK: (id: string) => `${API_URL}/library/remove/${id}`,
@@ -59,6 +60,7 @@ export const API_ENDPOINTS = {
         CHANGE_PASSWORD: `${API_URL}/profile/password`,
         STATS: `${API_URL}/profile/stats`,
         READING_ACTIVITY: `${API_URL}/profile/reading-activity`,
+        INFERRED_GENRES: `${API_URL}/profile/inferred-genres`,
     },
 
     // Recommendations

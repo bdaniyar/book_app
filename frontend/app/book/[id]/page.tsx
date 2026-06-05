@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation"
 import Image from "next/image"
-import { Star, BookmarkPlus, Share2, Clock, FileText } from "lucide-react"
+import { Star, Share2, Clock, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { BookCard } from "@/components/book-card"
 import { ReviewList } from "@/components/review-list"
+import { BookActions } from "@/components/book-actions"
 import { getBook, getSimilarBooks } from "@/lib/public-api"
 
 type PageProps = {
@@ -42,10 +43,7 @@ export default async function BookDetailPage({ params }: PageProps) {
 
             {/* Action Buttons */}
             <div className="flex gap-2">
-              <Button className="flex-1 rounded-xl" size="lg">
-                <BookmarkPlus className="h-4 w-4 mr-2" />
-                Save to Library
-              </Button>
+              <BookActions bookId={book.id} className="flex-1" />
               <Button variant="outline" size="lg" className="rounded-xl bg-transparent">
                 <Share2 className="h-4 w-4" />
               </Button>

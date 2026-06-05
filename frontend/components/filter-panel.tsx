@@ -10,12 +10,24 @@ type FilterPanelProps = {
   selectedCategory: string | null
   onCategoryChange: (category: string | null) => void
   categories: Category[]
+  minRating: number
+  onMinRatingChange: (rating: number) => void
+  minYear: number
+  onMinYearChange: (year: number) => void
 }
 
-export function FilterPanel({ selectedCategory, onCategoryChange, categories }: FilterPanelProps) {
+export function FilterPanel({
+  selectedCategory,
+  onCategoryChange,
+  categories,
+  minRating,
+  onMinRatingChange,
+  minYear,
+  onMinYearChange,
+}: FilterPanelProps) {
   return (
     <Card className="border-border/50">
-      <CardContent className="p-6 space-y-6">
+      <CardContent className="grid gap-6 p-6 md:grid-cols-3">
         <div className="space-y-4">
           <h3 className="font-semibold">Genre</h3>
           <RadioGroup
@@ -41,8 +53,14 @@ export function FilterPanel({ selectedCategory, onCategoryChange, categories }: 
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Minimum Rating</Label>
-            <Slider defaultValue={[0]} max={5} step={0.5} className="w-full" />
+            <Label>Minimum Rating: {minRating.toFixed(1)}</Label>
+            <Slider
+              value={[minRating]}
+              max={5}
+              step={0.5}
+              className="w-full"
+              onValueChange={([value]) => onMinRatingChange(value ?? 0)}
+            />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>0</span>
               <span>5</span>
@@ -52,11 +70,18 @@ export function FilterPanel({ selectedCategory, onCategoryChange, categories }: 
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Publication Year</Label>
-            <Slider defaultValue={[2000]} min={1900} max={2024} step={1} className="w-full" />
+            <Label>Publication Year: {minYear}+</Label>
+            <Slider
+              value={[minYear]}
+              min={1900}
+              max={2026}
+              step={1}
+              className="w-full"
+              onValueChange={([value]) => onMinYearChange(value ?? 1900)}
+            />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>1900</span>
-              <span>2024</span>
+              <span>2026</span>
             </div>
           </div>
         </div>
