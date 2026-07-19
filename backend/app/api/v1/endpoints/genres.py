@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -25,7 +26,9 @@ def create_genre(
 ) -> Genre:
     name = (name or "").strip()
     if not name:
-        raise HTTPException(status_code=400, detail="Name is required")
+        raise HTTPException(status_code=422, detail="Name is required")
+    if len(name) > 100:
+        raise HTTPException(status_code=422, detail="Name is too long")
 
     existing = db.query(Genre).filter(Genre.name == name).first()
     if existing:
@@ -33,7 +36,11 @@ def create_genre(
 
     g = Genre(name=name)
     db.add(g)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Genre already exists") from None
     db.refresh(g)
     return g
 

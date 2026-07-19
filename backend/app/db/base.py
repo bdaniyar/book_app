@@ -1,10 +1,4 @@
-from sqlalchemy.orm import DeclarativeBase
-
-
-class Base(DeclarativeBase):
-    """Base class for all SQLAlchemy ORM models."""
-
-    pass
+from app.db.base_class import Base
 
 # Import models so SQLAlchemy registers them on Base.metadata
 from app.models.user import User  # noqa: F401
@@ -19,4 +13,9 @@ from app.models.tokens import (  # noqa: F401
     EmailVerificationToken,
     PasswordResetToken,
     RefreshToken,
+)
+from app.models.assistant import (  # noqa: F401
+    AssistantAction,
+    AssistantConversation,
+    AssistantMessage,
 )

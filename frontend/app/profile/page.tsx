@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Award, BookOpen, Calendar, Clock, Settings, Star } from 'lucide-react'
+import { BookOpen, Calendar, Clock, Settings, Star } from 'lucide-react'
 
 import { BookCard } from '@/components/book-card'
 import {
@@ -19,6 +20,7 @@ import {
   type InferredGenre,
   type ProfileStats,
   type ReadingActivity,
+  type UserProfile,
 } from '@/lib/api-services'
 import { clearSession, setAccessToken } from '@/lib/auth-storage'
 import type { Book } from '@/lib/books-data'
@@ -27,17 +29,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
 type Mode = 'login' | 'register'
-
-type MeUser = {
-  id: string
-  email: string
-  username?: string | null
-  first_name?: string | null
-  last_name?: string | null
-  bio?: string | null
-  avatar_url?: string | null
-  created_at?: string
-}
 
 const emptyStats: ProfileStats = {
   booksRead: 0,
@@ -63,9 +54,10 @@ export default function ProfilePage() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const [isAuthed, setIsAuthed] = useState(false)
-  const [me, setMe] = useState<MeUser | null>(null)
+  const [me, setMe] = useState<UserProfile | null>(null)
   const [meLoading, setMeLoading] = useState(false)
 
   const [editOpen, setEditOpen] = useState(false)
@@ -74,10 +66,6 @@ export default function ProfilePage() {
   const [editLastName, setEditLastName] = useState('')
   const [editBio, setEditBio] = useState('')
   const [editEmail, setEditEmail] = useState('')
-
-  const [privacy, setPrivacy] = useState<'public' | 'private'>('public')
-  const [notifyEmail, setNotifyEmail] = useState(true)
-  const [notifyPush, setNotifyPush] = useState(false)
 
   const [newPassword, setNewPassword] = useState('')
   const [newPassword2, setNewPassword2] = useState('')
@@ -104,7 +92,7 @@ export default function ProfilePage() {
       ])
       setStats(statsRes.success && statsRes.data ? statsRes.data : emptyStats)
       setActivity(activityRes.success && activityRes.data ? activityRes.data : [])
-      setRecentlyRead(readRes.success && readRes.data ? readRes.data.slice(0, 6) : [])
+      setRecentlyRead(readRes.success && readRes.data ? readRes.data.slice(0, 6).map((entry) => entry.book) : [])
       setFavoriteGenres(genreRes.success && genreRes.data ? genreRes.data : [])
     } finally {
       setDashboardLoading(false)
@@ -122,8 +110,8 @@ export default function ProfilePage() {
           setIsAuthed(true)
 
           const res = await authService.me()
-          if (res.success) {
-            setMe(res.data as any)
+          if (res.success && res.data) {
+            setMe(res.data)
             await loadDashboard()
           }
         }
@@ -158,6 +146,7 @@ export default function ProfilePage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setNotice(null)
 
     try {
       if (mode === 'register') {
@@ -181,7 +170,7 @@ export default function ProfilePage() {
       setMeLoading(true)
       const meRes = await authService.me()
       if (meRes.success && meRes.data) {
-        setMe(meRes.data as any)
+        setMe(meRes.data)
         await loadDashboard()
       } else {
         setMe(null)
@@ -268,6 +257,7 @@ export default function ProfilePage() {
 
   const onForgotPassword = async () => {
     setError(null)
+    setNotice(null)
     if (!email.trim()) {
       setError('Enter your email above first (the email on your account)')
       return
@@ -279,7 +269,7 @@ export default function ProfilePage() {
         setError(res.error || 'Failed to send reset link')
         return
       }
-      setError('If this email exists, a reset link was generated. (Dev: check backend logs)')
+      setNotice('If an account exists for this email, a reset link has been sent.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to send reset link')
     }
@@ -296,7 +286,7 @@ export default function ProfilePage() {
         (me?.email ? `Reader profile for ${me.email}.` : 'Avid reader and book enthusiast. Always looking for the next great story to dive into.'),
       joinDate: me?.created_at
         ? new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date(me.created_at))
-        : 'January 2026',
+        : null,
       stats: {
         booksRead: stats.booksRead,
         reviews: stats.reviewsWritten,
@@ -322,10 +312,6 @@ export default function ProfilePage() {
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-3">
                       <h1 className="font-sans text-3xl font-bold">{user.displayName}</h1>
-                      <Badge variant="secondary" className="rounded-full">
-                        <Award className="h-3 w-3 mr-1" />
-                        Top Reader
-                      </Badge>
                       {meLoading ? (
                         <Badge variant="outline" className="rounded-full">
                           Loading…
@@ -342,16 +328,19 @@ export default function ProfilePage() {
 
                   <p className="text-muted-foreground leading-relaxed max-w-2xl">{user.bio}</p>
 
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span>Joined {user.joinDate}</span>
-                  </div>
+                  {user.joinDate ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>Joined {user.joinDate}</span>
+                    </div>
+                  ) : null}
 
                   {error ? (
                     <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                       <p className="text-sm text-destructive">{error}</p>
                     </div>
                   ) : null}
+                  {notice ? <p className="text-sm text-emerald-600 dark:text-emerald-400">{notice}</p> : null}
 
                   <div className="flex flex-wrap gap-4 pt-2">
                     <div className="text-center">
@@ -390,7 +379,7 @@ export default function ProfilePage() {
                     <DialogContent className="sm:max-w-2xl">
                       <DialogHeader>
                         <DialogTitle>Edit profile</DialogTitle>
-                        <DialogDescription>Обнови профиль. Настройки ниже пока без бэкенда.</DialogDescription>
+                        <DialogDescription>Update your public details or change your password.</DialogDescription>
                       </DialogHeader>
 
                       <Tabs defaultValue="profile" className="w-full">
@@ -449,50 +438,6 @@ export default function ProfilePage() {
                         <TabsContent value="settings" className="pt-4">
                           <div className="grid gap-6">
                             <div className="rounded-lg border border-border/50 p-4">
-                              <p className="text-sm font-medium mb-2">Privacy (placeholder)</p>
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  variant={privacy === 'public' ? 'default' : 'outline'}
-                                  onClick={() => setPrivacy('public')}
-                                >
-                                  Public
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={privacy === 'private' ? 'default' : 'outline'}
-                                  onClick={() => setPrivacy('private')}
-                                >
-                                  Private
-                                </Button>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-2">Пока не сохраняется (нужны поля в модели и endpoint).</p>
-                            </div>
-
-                            <div className="rounded-lg border border-border/50 p-4">
-                              <p className="text-sm font-medium mb-2">Notifications (placeholder)</p>
-                              <div className="grid gap-3">
-                                <label className="flex items-center gap-2 text-sm">
-                                  <input
-                                    type="checkbox"
-                                    checked={notifyEmail}
-                                    onChange={(e) => setNotifyEmail(e.target.checked)}
-                                  />
-                                  Email notifications
-                                </label>
-                                <label className="flex items-center gap-2 text-sm">
-                                  <input
-                                    type="checkbox"
-                                    checked={notifyPush}
-                                    onChange={(e) => setNotifyPush(e.target.checked)}
-                                  />
-                                  Push notifications
-                                </label>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-2">Пока не сохраняется (нужны поля/таблица).</p>
-                            </div>
-
-                            <div className="rounded-lg border border-border/50 p-4">
                               <p className="text-sm font-medium mb-2">Change password</p>
                               <div className="grid gap-3">
                                 <div className="grid gap-2">
@@ -539,9 +484,6 @@ export default function ProfilePage() {
                                   </Button>
                                 </div>
 
-                                <p className="text-xs text-muted-foreground">
-                                  Endpoint: <code>PUT /api/v1/profile/password</code>
-                                </p>
                               </div>
                             </div>
                           </div>
@@ -549,6 +491,7 @@ export default function ProfilePage() {
                       </Tabs>
 
                       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+                      {notice ? <p className="text-sm text-emerald-600 dark:text-emerald-400">{notice}</p> : null}
 
                       <DialogFooter>
                         <Button
@@ -588,21 +531,6 @@ export default function ProfilePage() {
                 <CardDescription>Your reading journey this year</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">2026 Reading Goal</span>
-                    <span className="font-semibold">{user.stats.booksRead}/30 books</span>
-                  </div>
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${Math.min(100, Math.round((user.stats.booksRead / 30) * 100))}%` }}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Pages Read</span>
@@ -658,7 +586,7 @@ export default function ProfilePage() {
                     </Badge>
                   )) : (
                     <p className="text-sm text-muted-foreground">
-                      Add books as Reading, Read, or Favorite to build this automatically.
+                      Add books as Reading or Read, and favorite the ones you love, to build this automatically.
                     </p>
                   )}
                 </div>
@@ -670,9 +598,7 @@ export default function ProfilePage() {
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="font-sans text-2xl font-semibold">Recently Read</h2>
-              <Button variant="ghost" disabled>
-                View All
-              </Button>
+              <Button variant="ghost" asChild><Link href="/library">View All</Link></Button>
             </div>
             {recentlyRead.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
@@ -698,10 +624,7 @@ export default function ProfilePage() {
         <Card className="border-border/60">
           <CardHeader>
             <CardTitle>{mode === 'register' ? 'Create account' : 'Welcome back'}</CardTitle>
-            <CardDescription>
-              Test auth flow. Backend endpoints: <code>/api/v1/auth/register</code>, <code>/api/v1/auth/login</code>,{' '}
-              <code>/api/v1/auth/me</code>
-            </CardDescription>
+            <CardDescription>Sign in to sync your library, reviews, recommendations, and AI conversations.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2 mb-4">
@@ -721,7 +644,15 @@ export default function ProfilePage() {
               {mode === 'register' ? (
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
-                  <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="alexreads" />
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="alexreads"
+                    minLength={1}
+                    maxLength={100}
+                    required
+                  />
                 </div>
               ) : null}
 
@@ -745,16 +676,25 @@ export default function ProfilePage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min 8 chars"
+                  minLength={8}
+                  maxLength={72}
                   required
                 />
-                <p className="text-xs text-muted-foreground">Passwords must be short ASCII for now (bcrypt 72-byte limit).</p>
+                <p className="text-xs text-muted-foreground">Use between 8 and 72 characters.</p>
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Please wait...' : mode === 'register' ? 'Create account' : 'Sign in'}
               </Button>
 
+              {mode === 'login' ? (
+                <Button type="button" variant="ghost" className="w-full" onClick={() => void onForgotPassword()}>
+                  Forgot your password?
+                </Button>
+              ) : null}
+
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              {notice ? <p className="text-sm text-emerald-600 dark:text-emerald-400">{notice}</p> : null}
             </form>
           </CardContent>
         </Card>

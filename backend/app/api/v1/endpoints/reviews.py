@@ -42,7 +42,7 @@ def list_reviews(
         select(Review)
         .options(selectinload(Review.user))
         .where(Review.book_id == book_id)
-        .order_by(Review.created_at.desc())
+        .order_by(Review.created_at.desc(), Review.id.asc())
         .offset((page - 1) * limit)
         .limit(limit)
     ).all()
@@ -57,11 +57,14 @@ def create_review(
 ) -> ReviewRead:
     if not db.get(Book, payload.book_id):
         raise HTTPException(status_code=404, detail="Book not found")
+    clean_text = payload.text.strip()
+    if not clean_text:
+        raise HTTPException(status_code=422, detail="Review text cannot be blank")
     review = Review(
         book_id=payload.book_id,
         user_id=current_user.id,
         rating=payload.rating,
-        text=payload.text,
+        text=clean_text,
     )
     db.add(review)
     try:
@@ -89,8 +92,11 @@ def update_review(
         raise HTTPException(status_code=404, detail="Review not found")
     if review.user_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Cannot edit this review")
+    clean_text = payload.text.strip()
+    if not clean_text:
+        raise HTTPException(status_code=422, detail="Review text cannot be blank")
     review.rating = payload.rating
-    review.text = payload.text
+    review.text = clean_text
     db.add(review)
     recalculate_book_rating(db, review.book_id)
     db.commit()

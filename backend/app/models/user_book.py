@@ -2,23 +2,39 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base_class import Base
 
 
 class ReadingStatus(str, enum.Enum):
     reading = "reading"
     want_to_read = "want-to-read"
     read = "read"
-    favorite = "favorite"
+    dropped = "dropped"
 
 
 class UserBook(Base):
     __tablename__ = "user_books"
-    __table_args__ = (UniqueConstraint("user_id", "book_id", name="uq_user_books_user_book"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", name="uq_user_books_user_book"),
+        CheckConstraint(
+            "progress_pages >= 0", name="ck_user_books_progress_pages_nonnegative"
+        ),
+        Index("ix_user_books_user_status", "user_id", "status"),
+        Index("ix_user_books_user_favorite", "user_id", "is_favorite"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -35,6 +51,7 @@ class UserBook(Base):
         default=ReadingStatus.want_to_read,
     )
     progress_pages: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

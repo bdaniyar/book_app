@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     recommendations,
     reviews,
     search,
+    assistant,
 )
 
 api_router = APIRouter()
@@ -21,3 +22,4 @@ api_router.include_router(library.router)
 api_router.include_router(reviews.router)
 api_router.include_router(recommendations.router)
 api_router.include_router(search.router)
+api_router.include_router(assistant.router)

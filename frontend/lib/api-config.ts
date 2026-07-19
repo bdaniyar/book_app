@@ -71,6 +71,16 @@ export const API_ENDPOINTS = {
         NEW_RELEASES: `${API_URL}/recommendations/new-releases`,
     },
 
+    // AI Librarian
+    ASSISTANT: {
+        STATUS: `${API_URL}/assistant/status`,
+        CONVERSATIONS: `${API_URL}/assistant/conversations`,
+        CONVERSATION: (id: string) => `${API_URL}/assistant/conversations/${id}`,
+        MESSAGES: (id: string) => `${API_URL}/assistant/conversations/${id}/messages`,
+        CONFIRM_ACTION: (id: string) => `${API_URL}/assistant/actions/${id}/confirm`,
+        REJECT_ACTION: (id: string) => `${API_URL}/assistant/actions/${id}/reject`,
+    },
+
     // Search
     SEARCH: {
         BOOKS: `${API_URL}/search/books`,

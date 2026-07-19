@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { ElementType, MouseEvent } from "react"
-import { BookCheck, BookMarked, BookOpen, Check, Heart, Library, Loader2 } from "lucide-react"
+import { Ban, BookCheck, BookMarked, BookOpen, Check, Heart, Library, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -13,14 +13,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { libraryService, type LibraryStatus } from "@/lib/api-services"
+import { libraryService, type LibraryEntry, type LibraryStatus } from "@/lib/api-services"
 import { cn } from "@/lib/utils"
 
 type BookActionsProps = {
   bookId: string
   compact?: boolean
   className?: string
-  onChanged?: (status: LibraryStatus) => void
+  onChanged?: (entry: LibraryEntry) => void
+  initialStatus?: LibraryStatus | null
+  initialFavorite?: boolean
 }
 
 const statuses: Array<{
@@ -31,12 +33,20 @@ const statuses: Array<{
   { status: "want-to-read", label: "Want to Read", icon: BookMarked },
   { status: "reading", label: "Reading", icon: BookOpen },
   { status: "read", label: "Read", icon: BookCheck },
-  { status: "favorite", label: "Favorite", icon: Heart },
+  { status: "dropped", label: "Dropped", icon: Ban },
 ]
 
-export function BookActions({ bookId, compact = false, className, onChanged }: BookActionsProps) {
+export function BookActions({
+  bookId,
+  compact = false,
+  className,
+  onChanged,
+  initialStatus = null,
+  initialFavorite = false,
+}: BookActionsProps) {
   const [saving, setSaving] = useState<LibraryStatus | null>(null)
-  const [savedStatus, setSavedStatus] = useState<LibraryStatus | null>(null)
+  const [savedStatus, setSavedStatus] = useState<LibraryStatus | null>(initialStatus)
+  const [isFavorite, setIsFavorite] = useState(initialFavorite)
   const [error, setError] = useState<string | null>(null)
 
   const saveStatus = async (status: LibraryStatus) => {
@@ -44,12 +54,33 @@ export function BookActions({ bookId, compact = false, className, onChanged }: B
     setError(null)
     try {
       const res = await libraryService.addBook(bookId, status)
-      if (!res.success) {
+      if (!res.success || !res.data) {
         setError(res.error || "Sign in to save books")
         return
       }
-      setSavedStatus(status)
-      onChanged?.(status)
+      setSavedStatus(res.data.status)
+      setIsFavorite(res.data.isFavorite)
+      onChanged?.(res.data)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const toggleFavorite = async () => {
+    setSaving(savedStatus ?? "want-to-read")
+    setError(null)
+    const nextFavorite = !isFavorite
+    try {
+      const res = savedStatus
+        ? await libraryService.setFavorite(bookId, nextFavorite)
+        : await libraryService.addBook(bookId, undefined, { isFavorite: nextFavorite })
+      if (!res.success || !res.data) {
+        setError(res.error || "Sign in to save favorites")
+        return
+      }
+      setSavedStatus(res.data.status)
+      setIsFavorite(res.data.isFavorite)
+      onChanged?.(res.data)
     } finally {
       setSaving(null)
     }
@@ -73,8 +104,10 @@ export function BookActions({ bookId, compact = false, className, onChanged }: B
           type="button"
           size={compact ? "sm" : "default"}
           className={cn("min-w-0 flex-1 rounded-lg", compact && "h-8 px-2 text-xs")}
-          disabled={saving !== null}
-          onClick={() => saveStatus("want-to-read")}
+          disabled={saving !== null || savedStatus !== null}
+          onClick={() => {
+            if (!savedStatus) void saveStatus("want-to-read")
+          }}
         >
           {saving === "want-to-read" ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -110,6 +143,18 @@ export function BookActions({ bookId, compact = false, className, onChanged }: B
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <Button
+          type="button"
+          variant="outline"
+          size={compact ? "sm" : "default"}
+          className={cn("rounded-lg bg-background/80", compact && "h-8 px-2")}
+          disabled={saving !== null}
+          onClick={toggleFavorite}
+          aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+          aria-pressed={isFavorite}
+        >
+          <Heart className={cn("h-4 w-4", isFavorite && "fill-current text-destructive")} />
+        </Button>
       </div>
       {error ? <p className="text-[11px] leading-snug text-destructive">{error}</p> : null}
     </div>

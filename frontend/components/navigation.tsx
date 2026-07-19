@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, Compass, Library, User, Moon, Sun } from "lucide-react"
+import { BookOpen, Compass, Library, User, Moon, Sun, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 const navItems = [
   { name: "Home", href: "/", icon: BookOpen },
   { name: "Discover", href: "/discover", icon: Compass },
+  { name: "AI Librarian", mobileName: "AI", href: "/assistant", icon: Sparkles },
   { name: "My Library", href: "/library", icon: Library },
   { name: "Profile", href: "/profile", icon: User },
 ]
@@ -30,7 +31,7 @@ export function Navigation() {
           <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`))
 
               return (
                 <Link
@@ -68,7 +69,7 @@ export function Navigation() {
         <div className="flex items-center justify-around h-16">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`))
 
             return (
               <Link
@@ -80,7 +81,7 @@ export function Navigation() {
                 )}
               >
                 <Icon className="h-5 w-5" />
-                <span className="text-xs font-medium">{item.name}</span>
+                <span className="text-xs font-medium">{"mobileName" in item ? item.mobileName : item.name}</span>
               </Link>
             )
           })}

@@ -60,7 +60,7 @@ def clean_rating(value: Any) -> Decimal:
     if not text:
         return Decimal("0")
     try:
-        rating = max(0, min(float(text), 9.99))
+        rating = max(0, min(float(text), 5.0))
         return Decimal(str(round(rating, 2)))
     except ValueError:
         return Decimal("0")
@@ -127,8 +127,8 @@ def upsert_book(
     cover_url: str | None,
     pages: int | None,
     published_year: int | None,
-    average_rating: Decimal,
-    review_count: int,
+    external_rating: Decimal,
+    external_review_count: int,
     external_source: str,
     external_id: str,
     update_existing: bool,
@@ -154,8 +154,8 @@ def upsert_book(
         existing.cover_url = cover_url or existing.cover_url
         existing.pages = pages or existing.pages
         existing.published_year = published_year or existing.published_year
-        existing.average_rating = average_rating
-        existing.review_count = review_count
+        existing.external_rating = external_rating
+        existing.external_review_count = external_review_count
         existing.external_source = external_source
         existing.external_id = external_id
         if genres:
@@ -171,8 +171,8 @@ def upsert_book(
         cover_url=cover_url,
         pages=pages,
         published_year=published_year,
-        average_rating=average_rating,
-        review_count=review_count,
+        external_rating=external_rating,
+        external_review_count=external_review_count,
         external_source=external_source,
         external_id=external_id,
     )
@@ -252,8 +252,8 @@ def import_open_library(args: argparse.Namespace) -> ImportStats:
                     cover_url=OPEN_LIBRARY_COVER_URL.format(cover_id=cover_id) if cover_id else None,
                     pages=clean_int(doc.get("number_of_pages_median")),
                     published_year=clean_int(doc.get("first_publish_year")),
-                    average_rating=clean_rating(doc.get("ratings_average")),
-                    review_count=clean_int(doc.get("ratings_count")) or 0,
+                    external_rating=clean_rating(doc.get("ratings_average")),
+                    external_review_count=clean_int(doc.get("ratings_count")) or 0,
                     external_source="openlibrary",
                     external_id=external_id,
                     update_existing=args.update_existing,
@@ -296,8 +296,8 @@ def import_goodreads_csv(args: argparse.Namespace) -> ImportStats:
                     cover_url=clean_text(row.get("image_url") or row.get("cover_url") or row.get("small_image_url")),
                     pages=clean_int(row.get("num_pages") or row.get("pages")),
                     published_year=clean_int(row.get("original_publication_year") or row.get("published_year")),
-                    average_rating=clean_rating(row.get("average_rating") or row.get("rating")),
-                    review_count=clean_int(row.get("ratings_count") or row.get("work_ratings_count")) or 0,
+                    external_rating=clean_rating(row.get("average_rating") or row.get("rating")),
+                    external_review_count=clean_int(row.get("ratings_count") or row.get("work_ratings_count")) or 0,
                     external_source=args.source,
                     external_id=external_id,
                     update_existing=args.update_existing,

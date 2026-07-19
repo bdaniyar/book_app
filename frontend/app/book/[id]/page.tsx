@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation"
 import Image from "next/image"
-import { Star, Share2, Clock, FileText } from "lucide-react"
+import Link from "next/link"
+import { Star, Clock, FileText, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { BookCard } from "@/components/book-card"
-import { ReviewList } from "@/components/review-list"
+import { BookReviews } from "@/components/book-reviews"
 import { BookActions } from "@/components/book-actions"
 import { getBook, getSimilarBooks } from "@/lib/public-api"
 
@@ -42,10 +43,12 @@ export default async function BookDetailPage({ params }: PageProps) {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <BookActions bookId={book.id} className="flex-1" />
-              <Button variant="outline" size="lg" className="rounded-xl bg-transparent">
-                <Share2 className="h-4 w-4" />
+              <Button variant="outline" className="rounded-xl bg-transparent" asChild>
+                <Link href={`/assistant?bookId=${encodeURIComponent(book.id)}`}>
+                  <Sparkles className="mr-2 h-4 w-4" /> Ask AI
+                </Link>
               </Button>
             </div>
           </div>
@@ -53,9 +56,11 @@ export default async function BookDetailPage({ params }: PageProps) {
           {/* Book Info */}
           <div className="space-y-6">
             <div className="space-y-3">
-              <Badge variant="secondary" className="rounded-full">
-                {book.genre}
-              </Badge>
+              <div className="flex flex-wrap gap-2">
+                {book.genres.map((genre) => (
+                  <Badge key={genre} variant="secondary" className="rounded-full">{genre}</Badge>
+                ))}
+              </div>
               <h1 className="font-sans text-4xl md:text-5xl font-bold tracking-tight text-balance">{book.title}</h1>
               <p className="text-xl text-muted-foreground">by {book.author}</p>
             </div>
@@ -82,16 +87,16 @@ export default async function BookDetailPage({ params }: PageProps) {
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">Pages:</span>
-                <span className="font-medium">{book.pages}</span>
+                <span className="font-medium">{book.pages ?? "Unknown"}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">Published:</span>
-                <span className="font-medium">{book.publishedYear}</span>
+                <span className="font-medium">{book.publishedYear ?? "Unknown"}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">ISBN:</span>
-                <span className="font-medium font-mono text-xs">{book.isbn}</span>
+                <span className="font-medium font-mono text-xs">{book.isbn ?? "Not available"}</span>
               </div>
             </div>
 
@@ -108,15 +113,7 @@ export default async function BookDetailPage({ params }: PageProps) {
         <Separator />
 
         {/* Reviews Section */}
-        <section className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-sans text-2xl font-semibold">Reader Reviews</h2>
-            <Button variant="outline" className="rounded-xl bg-transparent">
-              Write a Review
-            </Button>
-          </div>
-          <ReviewList bookId={book.id} />
-        </section>
+        <BookReviews bookId={book.id} />
 
         {/* Similar Books */}
         {similarBooks.length > 0 && (

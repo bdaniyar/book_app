@@ -30,7 +30,8 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
-        )
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
 
     if payload.get("type") != "access":
         raise HTTPException(
@@ -39,7 +40,7 @@ def get_current_user(
         )
 
     sub = payload.get("sub")
-    if not sub:
+    if not isinstance(sub, str) or not sub:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
@@ -58,6 +59,20 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user",
+        )
+
+    token_version = payload.get("ver")
+    if not isinstance(token_version, int) or token_version != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session is no longer valid",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     return user

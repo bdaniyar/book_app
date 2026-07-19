@@ -1,16 +1,29 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base_class import Base
 
 
 class Review(Base):
     __tablename__ = "reviews"
-    __table_args__ = (UniqueConstraint("user_id", "book_id", name="uq_reviews_user_book"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", name="uq_reviews_user_book"),
+        CheckConstraint("rating BETWEEN 1 AND 5", name="ck_reviews_rating_range"),
+        CheckConstraint("helpful >= 0", name="ck_reviews_helpful_nonnegative"),
+        Index("ix_reviews_book_created_at", "book_id", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

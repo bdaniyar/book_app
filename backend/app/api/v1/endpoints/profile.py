@@ -1,7 +1,8 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
@@ -27,13 +28,21 @@ def get_profile(current_user: User = Depends(get_current_user)) -> User:
 
 
 @router.put("", response_model=UserRead)
+@router.patch("", response_model=UserRead)
 def update_profile(
     payload: ProfileUpdateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> User:
     # email change (ensure unique)
-    if payload.email is not None:
+    fields_set = payload.model_fields_set
+
+    if "email" in fields_set:
+        if payload.email is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Email cannot be cleared",
+            )
         new_email = str(payload.email)
         if new_email != current_user.email:
             existing = get_user_by_email(db, new_email)
@@ -43,10 +52,11 @@ def update_profile(
                     detail="User with this email already exists",
                 )
             current_user.email = new_email
+            current_user.email_verified = False
 
     # username change (ensure unique)
-    if payload.username is not None:
-        new_username = payload.username.strip() or None
+    if "username" in fields_set:
+        new_username = payload.username
         if new_username != current_user.username:
             if new_username is not None:
                 existing = get_user_by_username(db, new_username)
@@ -57,17 +67,24 @@ def update_profile(
                     )
             current_user.username = new_username
 
-    if payload.first_name is not None:
+    if "first_name" in fields_set:
         current_user.first_name = payload.first_name
 
-    if payload.last_name is not None:
+    if "last_name" in fields_set:
         current_user.last_name = payload.last_name
 
-    if payload.bio is not None:
+    if "bio" in fields_set:
         current_user.bio = payload.bio
 
     db.add(current_user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User with this email or username already exists",
+        ) from None
     db.refresh(current_user)
     return current_user
 
@@ -97,10 +114,14 @@ def get_profile_stats(
         select(
             func.coalesce(
                 func.sum(
-                    func.coalesce(
-                        func.nullif(UserBook.progress_pages, 0),
-                        Book.pages,
-                        0,
+                    case(
+                        (
+                            UserBook.status == ReadingStatus.read,
+                            func.coalesce(
+                                Book.pages, UserBook.progress_pages, 0
+                            ),
+                        ),
+                        else_=UserBook.progress_pages,
                     )
                 ),
                 0,
@@ -163,8 +184,9 @@ def get_inferred_genres(
         .join(UserBook, UserBook.book_id == book_genres.c.book_id)
         .where(
             UserBook.user_id == current_user.id,
-            UserBook.status.in_(
-                [ReadingStatus.reading, ReadingStatus.read, ReadingStatus.favorite]
+            or_(
+                UserBook.status.in_([ReadingStatus.reading, ReadingStatus.read]),
+                UserBook.is_favorite.is_(True),
             ),
         )
         .group_by(Genre.name)
@@ -185,7 +207,12 @@ def replace_favorite_genres(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Genre]:
-    genres = db.query(Genre).filter(Genre.id.in_(payload.genre_ids)).order_by(Genre.name.asc()).all()
+    genres = (
+        db.query(Genre)
+        .filter(Genre.id.in_(payload.genre_ids))
+        .order_by(Genre.name.asc())
+        .all()
+    )
     if len(genres) != len(set(payload.genre_ids)):
         raise HTTPException(status_code=404, detail="One or more genres not found")
 
@@ -221,7 +248,9 @@ def remove_favorite_genre(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Genre]:
-    current_user.favorite_genres = [g for g in current_user.favorite_genres if g.id != genre_id]
+    current_user.favorite_genres = [
+        genre for genre in current_user.favorite_genres if genre.id != genre_id
+    ]
     db.add(current_user)
     db.commit()
     db.refresh(current_user)

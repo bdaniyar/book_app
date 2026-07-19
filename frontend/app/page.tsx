@@ -6,6 +6,8 @@ import { BookCard } from "@/components/book-card"
 import { CategoryChips } from "@/components/category-chips"
 import { getCategories, getTrendingBooks } from "@/lib/public-api"
 
+export const dynamic = "force-dynamic"
+
 export default async function HomePage() {
   const [trendingBooks, categories] = await Promise.all([
     getTrendingBooks(12),
@@ -22,18 +24,23 @@ export default async function HomePage() {
             <span className="text-primary"> Great Read</span>
           </h1>
           <p className="text-lg text-muted-foreground text-pretty">
-            Explore millions of books, get personalized recommendations, and connect with a community of readers
+            Explore the catalog, track your reading, and get recommendations shaped by your own library.
           </p>
 
           {/* Search Bar */}
-          <div className="relative max-w-2xl mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search by title, author, or ISBN..."
-              className="pl-12 h-12 text-base rounded-xl"
-            />
-          </div>
+          <form action="/discover" method="get" className="flex max-w-2xl gap-2 mx-auto">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                name="q"
+                type="search"
+                placeholder="Search by title, author, or ISBN..."
+                className="pl-12 h-12 text-base rounded-xl"
+                aria-label="Search books"
+              />
+            </div>
+            <Button type="submit" size="lg" className="h-12 rounded-xl">Search</Button>
+          </form>
         </section>
 
         {/* Categories */}
@@ -52,7 +59,7 @@ export default async function HomePage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-sans text-2xl font-semibold">Trending Now</h2>
-              <p className="text-muted-foreground mt-1">Most popular books this week</p>
+              <p className="text-muted-foreground mt-1">Popular books based on catalog ratings</p>
             </div>
           </div>
           {trendingBooks.length > 0 ? (

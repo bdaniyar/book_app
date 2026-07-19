@@ -1,73 +1,70 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Star } from "lucide-react"
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
-import { reviewService } from "@/lib/api-services"
+import { reviewService, type Review } from "@/lib/api-services"
 
-type Review = {
-  id: string
-  userName: string
-  userAvatar?: string
-  rating: number
-  createdAt: string
-  text: string
-  helpful: number
-}
-
-type ReviewListProps = {
-  bookId: string
-}
-
-export function ReviewList({ bookId }: ReviewListProps) {
+export function ReviewList({ bookId, refreshKey = 0 }: { bookId: string; refreshKey?: number }) {
   const [reviews, setReviews] = useState<Review[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    let mounted = true
+    let active = true
+    setLoading(true)
+    setError(null)
 
-    async function load() {
-      const res = await reviewService.getByBookId(bookId)
-      if (mounted && res.success && res.data) setReviews(res.data as Review[])
-    }
+    void reviewService.getByBookId(bookId).then((response) => {
+      if (!active) return
+      if (response.success) {
+        setReviews(response.data ?? [])
+      } else {
+        setReviews([])
+        setError(response.error || "Could not load reviews.")
+      }
+      setLoading(false)
+    })
 
-    load()
     return () => {
-      mounted = false
+      active = false
     }
-  }, [bookId])
+  }, [bookId, refreshKey])
+
+  if (loading) return <p className="text-muted-foreground">Loading reviews…</p>
+  if (error) return <p className="text-sm text-destructive">{error}</p>
+  if (!reviews.length) return <p className="text-muted-foreground">No reviews yet. Be the first to share your thoughts.</p>
 
   return (
     <div className="space-y-4">
-      {reviews.length === 0 && (
-        <p className="text-muted-foreground">No reviews yet.</p>
-      )}
       {reviews.map((review) => (
         <Card key={review.id} className="border-border/50">
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="space-y-4 p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <Avatar>
                   <AvatarImage src={review.userAvatar || "/placeholder.svg"} alt={review.userName} />
-                  <AvatarFallback>{review.userName.charAt(0)}</AvatarFallback>
+                  <AvatarFallback>{review.userName.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="font-semibold">{review.userName}</p>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(review.createdAt).toLocaleDateString()}
+                    {new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(review.createdAt))}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className={`h-4 w-4 ${i < review.rating ? "fill-accent text-accent" : "text-muted"}`} />
+              <div className="flex" aria-label={`${review.rating} out of 5 stars`}>
+                {Array.from({ length: 5 }, (_, index) => (
+                  <Star
+                    key={index}
+                    className={`h-4 w-4 ${index < review.rating ? "fill-accent text-accent" : "text-muted"}`}
+                  />
                 ))}
               </div>
             </div>
-            <p className="text-muted-foreground leading-relaxed text-pretty">{review.text}</p>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <button className="hover:text-foreground transition-colors">Helpful ({review.helpful})</button>
-            </div>
+            <p className="text-pretty leading-relaxed text-muted-foreground">{review.text}</p>
           </CardContent>
         </Card>
       ))}

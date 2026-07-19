@@ -1,9 +1,10 @@
 import os
-import uuid
+import re
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 from dotenv import load_dotenv
 
@@ -17,28 +18,60 @@ from app.api.deps import db as db_dep
 
 @pytest.fixture(scope="session")
 def test_engine():
-    # Use a dedicated DB url for tests if provided, otherwise fall back to DATABASE_URL.
-    db_url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
-    if not db_url:
-        raise RuntimeError("TEST_DATABASE_URL (or DATABASE_URL) must be set for tests")
-    engine = create_engine(db_url, pool_pre_ping=True)
+    # Never fall back to DATABASE_URL: the test suite executes writes and must
+    # only ever connect to an explicitly named, dedicated test database.
+    raw_test_url = os.getenv("TEST_DATABASE_URL")
+    if not raw_test_url:
+        raise RuntimeError("TEST_DATABASE_URL must be explicitly set for tests")
+
+    test_url = make_url(raw_test_url)
+    database_name = (test_url.database or "").lower()
+    if not re.search(r"(^|[_-])test($|[_-])", database_name):
+        raise RuntimeError(
+            "Refusing to run tests: TEST_DATABASE_URL database name must contain "
+            "a separate 'test' segment"
+        )
+
+    raw_application_url = os.getenv("DATABASE_URL")
+    if raw_application_url and test_url == make_url(raw_application_url):
+        raise RuntimeError(
+            "Refusing to run tests: TEST_DATABASE_URL matches DATABASE_URL"
+        )
+
+    engine = create_engine(test_url, pool_pre_ping=True)
+    Base.metadata.create_all(bind=engine)
     yield engine
     engine.dispose()
 
 
 @pytest.fixture()
 def db_session(test_engine):
+    connection = test_engine.connect()
+    outer_transaction = connection.begin()
     TestingSessionLocal = sessionmaker(
-        bind=test_engine, autocommit=False, autoflush=False
+        bind=connection,
+        autocommit=False,
+        autoflush=False,
+        join_transaction_mode="create_savepoint",
     )
-    Base.metadata.create_all(bind=test_engine)
 
     session: Session = TestingSessionLocal()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=test_engine)
+        if outer_transaction.is_active:
+            outer_transaction.rollback()
+        connection.close()
+
+
+@pytest.fixture(autouse=True)
+def reset_in_memory_rate_limits():
+    from app.api.v1.endpoints.auth import _RATE_LIMITS
+
+    _RATE_LIMITS.clear()
+    yield
+    _RATE_LIMITS.clear()
 
 
 @pytest.fixture()

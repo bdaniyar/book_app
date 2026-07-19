@@ -1,459 +1,230 @@
-/**
- * API Services
- * High-level service functions for interacting with the API
- */
+import { apiClient, type QueryValue } from "./api-client"
+import { API_ENDPOINTS } from "./api-config"
+import type { Book } from "./books-data"
 
-import { apiClient } from './api-client'
-import { API_ENDPOINTS } from './api-config'
-import type { Book, Category } from './books-data'
-
-/**
- * Review type
- */
 export type Review = {
-    id: string
-    bookId: string
-    userId: string
-    userName: string
-    userAvatar?: string
-    rating: number
-    text: string
-    createdAt: string
-    helpful: number
+  id: string
+  bookId: string
+  userId: string
+  userName: string
+  userAvatar?: string | null
+  rating: number
+  text: string
+  createdAt: string
+  helpful: number
 }
 
-/**
- * User Profile type
- */
+export type Genre = {
+  id: string
+  name: string
+  created_at: string
+}
+
 export type UserProfile = {
-    id: string
-    email: string
-    username?: string | null
-    first_name?: string | null
-    last_name?: string | null
-    bio?: string | null
-    avatar_url?: string | null
-    joinedAt: string
-    stats: {
-        booksRead: number
-        pagesRead: number
-        avgRating: number
-        reviewsWritten: number
-        readingStreak: number
-    }
+  id: string
+  email: string
+  username?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  bio?: string | null
+  avatar_url?: string | null
+  created_at?: string
 }
 
-/**
- * Profile Update type
- */
 export type ProfileUpdate = {
-    username?: string | null
-    first_name?: string | null
-    last_name?: string | null
-    bio?: string | null
-    email?: string | null
+  username?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  bio?: string | null
+  email?: string | null
 }
 
-/**
- * Change Password Payload type
- */
 export type ChangePasswordPayload = {
-    current_password: string
-    new_password: string
-    new_password2: string
+  current_password: string
+  new_password: string
+  new_password2: string
 }
 
-/**
- * Reset Password Payload type
- */
 export type ResetPasswordPayload = {
-    token: string
-    new_password: string
-    new_password2: string
+  token: string
+  new_password: string
+  new_password2: string
 }
 
-/**
- * Library Status type
- */
-export type LibraryStatus = 'reading' | 'want-to-read' | 'read' | 'favorite'
+export type LibraryStatus = "reading" | "want-to-read" | "read" | "dropped"
+
+export type LibraryEntry = {
+  id: string
+  book: Book
+  status: LibraryStatus
+  progressPages: number
+  isFavorite: boolean
+  startedAt: string | null
+  finishedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type LibraryEntryUpdate = {
+  status?: LibraryStatus
+  progressPages?: number
+  isFavorite?: boolean
+}
 
 export type ProfileStats = {
-    booksRead: number
-    pagesRead: number
-    avgRating: number
-    reviewsWritten: number
-    readingStreak: number
+  booksRead: number
+  pagesRead: number
+  avgRating: number
+  reviewsWritten: number
+  readingStreak: number
 }
 
 export type ReadingActivity = {
-    date: string
-    action: string
-    title: string
+  date: string
+  action: string
+  title: string
 }
 
 export type InferredGenre = {
-    name: string
-    count: number
+  name: string
+  count: number
 }
 
-/**
- * Auth Tokens type
- */
 export type AuthTokens = {
-    access_token: string
-    token_type: string
+  access_token: string
+  token_type: string
 }
 
-/**
- * Book Services
- */
+type SearchFilters = Record<string, QueryValue>
+
 export const bookService = {
-    /**
-     * Get all books with optional pagination
-     */
-    getAll: async (params?: { page?: number; limit?: number }) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.LIST, { params })
-    },
+  getAll: (params?: { page?: number; limit?: number }) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.LIST, { params }),
 
-    /**
-     * Get a single book by ID
-     */
-    getById: async (id: string) => {
-        return apiClient.get<Book>(API_ENDPOINTS.BOOKS.GET(id))
-    },
+  getById: (id: string) => apiClient.get<Book>(API_ENDPOINTS.BOOKS.GET(id)),
 
-    /**
-     * Search books
-     */
-    search: async (query: string, filters?: Record<string, any>) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.SEARCH, {
-            params: { q: query, ...filters },
-        })
-    },
+  search: (query: string, filters?: SearchFilters) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.SEARCH, { params: { q: query, ...filters } }),
 
-    /**
-     * Get trending books
-     */
-    getTrending: async (limit?: number) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.TRENDING, {
-            params: limit ? { limit } : undefined,
-        })
-    },
+  getTrending: (limit?: number) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.TRENDING, {
+      params: limit ? { limit } : undefined,
+    }),
 
-    /**
-     * Get recommended books
-     */
-    getRecommended: async (limit?: number) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.RECOMMENDED, {
-            params: limit ? { limit } : undefined,
-        })
-    },
+  getRecommended: (limit?: number) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.RECOMMENDED, {
+      params: limit ? { limit } : undefined,
+    }),
 
-    /**
-     * Get books by category
-     */
-    getByCategory: async (category: string, params?: { page?: number; limit?: number }) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.BY_CATEGORY(category), { params })
-    },
+  getByCategory: (category: string, params?: { page?: number; limit?: number }) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.BY_CATEGORY(category), { params }),
 
-    /**
-     * Get similar books
-     */
-    getSimilar: async (bookId: string, limit?: number) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.SIMILAR(bookId), {
-            params: limit ? { limit } : undefined,
-        })
-    },
+  getSimilar: (bookId: string, limit?: number) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.BOOKS.SIMILAR(bookId), {
+      params: limit ? { limit } : undefined,
+    }),
 }
 
-/**
- * Category Services
- */
 export const categoryService = {
-    /**
-     * Get all categories
-     */
-    getAll: async () => {
-        return apiClient.get<Category[]>(API_ENDPOINTS.CATEGORIES.LIST)
-    },
-
-    /**
-     * Get category by ID
-     */
-    getById: async (id: string) => {
-        return apiClient.get<Category>(API_ENDPOINTS.CATEGORIES.GET(id))
-    },
+  getAll: () => apiClient.get<Genre[]>(API_ENDPOINTS.CATEGORIES.LIST),
+  getById: (id: string) => apiClient.get<Genre>(API_ENDPOINTS.CATEGORIES.GET(id)),
 }
 
-/**
- * Library Services
- */
 export const libraryService = {
-    /**
-     * Get all books in library
-     */
-    getAll: async () => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.LIBRARY.GET_ALL)
-    },
+  getAll: () => apiClient.get<LibraryEntry[]>(API_ENDPOINTS.LIBRARY.GET_ALL),
+  getReading: () => apiClient.get<LibraryEntry[]>(API_ENDPOINTS.LIBRARY.GET_READING),
+  getWantToRead: () => apiClient.get<LibraryEntry[]>(API_ENDPOINTS.LIBRARY.GET_WANT_TO_READ),
+  getRead: () => apiClient.get<LibraryEntry[]>(API_ENDPOINTS.LIBRARY.GET_READ),
+  getFavorites: () => apiClient.get<LibraryEntry[]>(API_ENDPOINTS.LIBRARY.GET_FAVORITES),
 
-    /**
-     * Get currently reading books
-     */
-    getReading: async () => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.LIBRARY.GET_READING)
-    },
+  addBook: (
+    bookId: string,
+    status?: LibraryStatus,
+    options?: Omit<LibraryEntryUpdate, "status">,
+  ) => apiClient.post<LibraryEntry>(API_ENDPOINTS.LIBRARY.ADD_BOOK, {
+    bookId,
+    ...(status ? { status } : {}),
+    ...options,
+  }),
 
-    /**
-     * Get want to read books
-     */
-    getWantToRead: async () => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.LIBRARY.GET_WANT_TO_READ)
-    },
+  removeBook: (bookId: string) => apiClient.delete(API_ENDPOINTS.LIBRARY.REMOVE_BOOK(bookId)),
 
-    /**
-     * Get read books
-     */
-    getRead: async () => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.LIBRARY.GET_READ)
-    },
+  updateEntry: (bookId: string, data: LibraryEntryUpdate) =>
+    apiClient.patch<LibraryEntry>(API_ENDPOINTS.LIBRARY.UPDATE_STATUS(bookId), data),
 
-    /**
-     * Get favorite books
-     */
-    getFavorites: async () => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.LIBRARY.GET_FAVORITES)
-    },
+  updateStatus: (bookId: string, status: LibraryStatus, progressPages?: number) =>
+    apiClient.patch<LibraryEntry>(API_ENDPOINTS.LIBRARY.UPDATE_STATUS(bookId), {
+      status,
+      ...(progressPages === undefined ? {} : { progressPages }),
+    }),
 
-    /**
-     * Add book to library
-     */
-    addBook: async (bookId: string, status: LibraryStatus) => {
-        return apiClient.post(API_ENDPOINTS.LIBRARY.ADD_BOOK, { bookId, status })
-    },
-
-    /**
-     * Remove book from library
-     */
-    removeBook: async (bookId: string) => {
-        return apiClient.delete(API_ENDPOINTS.LIBRARY.REMOVE_BOOK(bookId))
-    },
-
-    /**
-     * Update book status in library
-     */
-    updateStatus: async (bookId: string, status: LibraryStatus) => {
-        return apiClient.patch(API_ENDPOINTS.LIBRARY.UPDATE_STATUS(bookId), { status })
-    },
+  setFavorite: (bookId: string, isFavorite: boolean) =>
+    apiClient.patch<LibraryEntry>(API_ENDPOINTS.LIBRARY.UPDATE_STATUS(bookId), { isFavorite }),
 }
 
-/**
- * Review Services
- */
 export const reviewService = {
-    /**
-     * Get reviews for a book
-     */
-    getByBookId: async (bookId: string, params?: { page?: number; limit?: number }) => {
-        return apiClient.get<Review[]>(API_ENDPOINTS.REVIEWS.LIST(bookId), { params })
-    },
+  getByBookId: (bookId: string, params?: { page?: number; limit?: number }) =>
+    apiClient.get<Review[]>(API_ENDPOINTS.REVIEWS.LIST(bookId), { params }),
 
-    /**
-     * Create a review
-     */
-    create: async (bookId: string, rating: number, text: string) => {
-        return apiClient.post<Review>(API_ENDPOINTS.REVIEWS.CREATE, {
-            bookId,
-            rating,
-            text,
-        })
-    },
+  create: (bookId: string, rating: number, text: string) =>
+    apiClient.post<Review>(API_ENDPOINTS.REVIEWS.CREATE, { bookId, rating, text }),
 
-    /**
-     * Update a review
-     */
-    update: async (reviewId: string, rating: number, text: string) => {
-        return apiClient.put<Review>(API_ENDPOINTS.REVIEWS.UPDATE(reviewId), {
-            rating,
-            text,
-        })
-    },
+  update: (reviewId: string, rating: number, text: string) =>
+    apiClient.put<Review>(API_ENDPOINTS.REVIEWS.UPDATE(reviewId), { rating, text }),
 
-    /**
-     * Delete a review
-     */
-    delete: async (reviewId: string) => {
-        return apiClient.delete(API_ENDPOINTS.REVIEWS.DELETE(reviewId))
-    },
+  delete: (reviewId: string) => apiClient.delete(API_ENDPOINTS.REVIEWS.DELETE(reviewId)),
 }
 
-/**
- * Profile Services
- */
 export const profileService = {
-    /**
-     * Get user profile (uses /auth/me)
-     */
-    get: async () => {
-        return apiClient.get(API_ENDPOINTS.AUTH.ME)
-    },
-
-    /**
-     * Update user profile
-     */
-    update: async (data: ProfileUpdate) => {
-        return apiClient.put(API_ENDPOINTS.PROFILE.UPDATE, data)
-    },
-
-    /**
-     * Change password
-     */
-    changePassword: async (data: ChangePasswordPayload) => {
-        return apiClient.put(API_ENDPOINTS.PROFILE.CHANGE_PASSWORD, data)
-    },
-
-    /**
-     * Get user stats
-     */
-    getStats: async () => {
-        return apiClient.get<ProfileStats>(API_ENDPOINTS.PROFILE.STATS)
-    },
-
-    /**
-     * Get reading activity
-     */
-    getReadingActivity: async () => {
-        return apiClient.get<ReadingActivity[]>(API_ENDPOINTS.PROFILE.READING_ACTIVITY)
-    },
-
-    /**
-     * Get favorite genres inferred from reading/read/favorite library books
-     */
-    getInferredGenres: async () => {
-        return apiClient.get<InferredGenre[]>(API_ENDPOINTS.PROFILE.INFERRED_GENRES)
-    },
+  get: () => apiClient.get<UserProfile>(API_ENDPOINTS.AUTH.ME),
+  update: (data: ProfileUpdate) => apiClient.patch<UserProfile>(API_ENDPOINTS.PROFILE.UPDATE, data),
+  changePassword: (data: ChangePasswordPayload) =>
+    apiClient.put(API_ENDPOINTS.PROFILE.CHANGE_PASSWORD, data),
+  getStats: () => apiClient.get<ProfileStats>(API_ENDPOINTS.PROFILE.STATS),
+  getReadingActivity: () =>
+    apiClient.get<ReadingActivity[]>(API_ENDPOINTS.PROFILE.READING_ACTIVITY),
+  getInferredGenres: () =>
+    apiClient.get<InferredGenre[]>(API_ENDPOINTS.PROFILE.INFERRED_GENRES),
 }
 
-/**
- * Recommendation Services
- */
 export const recommendationService = {
-    /**
-     * Get personalized recommendations
-     */
-    getPersonalized: async (limit?: number) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.RECOMMENDATIONS.PERSONALIZED, {
-            params: limit ? { limit } : undefined,
-        })
-    },
-
-    /**
-     * Get recommendations based on a book
-     */
-    getBasedOnBook: async (bookId: string, limit?: number) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.RECOMMENDATIONS.BASED_ON_BOOK(bookId), {
-            params: limit ? { limit } : undefined,
-        })
-    },
-
-    /**
-     * Get popular books in a genre
-     */
-    getPopularInGenre: async (genre: string, limit?: number) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.RECOMMENDATIONS.POPULAR_IN_GENRE(genre), {
-            params: limit ? { limit } : undefined,
-        })
-    },
-
-    /**
-     * Get new releases
-     */
-    getNewReleases: async (limit?: number) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.RECOMMENDATIONS.NEW_RELEASES, {
-            params: limit ? { limit } : undefined,
-        })
-    },
+  getPersonalized: (limit?: number) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.RECOMMENDATIONS.PERSONALIZED, {
+      params: limit ? { limit } : undefined,
+    }),
+  getBasedOnBook: (bookId: string, limit?: number) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.RECOMMENDATIONS.BASED_ON_BOOK(bookId), {
+      params: limit ? { limit } : undefined,
+    }),
+  getPopularInGenre: (genre: string, limit?: number) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.RECOMMENDATIONS.POPULAR_IN_GENRE(genre), {
+      params: limit ? { limit } : undefined,
+    }),
+  getNewReleases: (limit?: number) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.RECOMMENDATIONS.NEW_RELEASES, {
+      params: limit ? { limit } : undefined,
+    }),
 }
 
-/**
- * Search Services
- */
 export const searchService = {
-    /**
-     * Search books
-     */
-    books: async (query: string, filters?: Record<string, any>) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.SEARCH.BOOKS, {
-            params: { q: query, ...filters },
-        })
-    },
-
-    /**
-     * Search authors
-     */
-    authors: async (query: string) => {
-        return apiClient.get(API_ENDPOINTS.SEARCH.AUTHORS, {
-            params: { q: query },
-        })
-    },
-
-    /**
-     * Advanced search
-     */
-    advanced: async (filters: Record<string, any>) => {
-        return apiClient.get<Book[]>(API_ENDPOINTS.SEARCH.ADVANCED, { params: filters })
-    },
+  books: (query: string, filters?: SearchFilters) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.SEARCH.BOOKS, { params: { q: query, ...filters } }),
+  authors: (query: string) =>
+    apiClient.get<unknown[]>(API_ENDPOINTS.SEARCH.AUTHORS, { params: { q: query } }),
+  advanced: (filters: SearchFilters) =>
+    apiClient.get<Book[]>(API_ENDPOINTS.SEARCH.ADVANCED, { params: filters }),
 }
 
-/**
- * Authentication Services
- */
 export const authService = {
-    /**
-     * Login (sets refresh cookie server-side)
-     */
-    login: async (email: string, password: string) => {
-        return apiClient.post<{ access_token: string; token_type: string }>(API_ENDPOINTS.AUTH.LOGIN, { email, password })
-    },
-
-    /**
-     * Register (sets refresh cookie server-side)
-     */
-    register: async (email: string, password: string, username: string) => {
-        return apiClient.post<{ access_token: string; token_type: string }>(API_ENDPOINTS.AUTH.REGISTER, { email, password, username })
-    },
-
-    /**
-     * Refresh access token using HttpOnly cookie
-     */
-    refresh: async () => {
-        return apiClient.post<{ access_token: string; token_type: string }>(API_ENDPOINTS.AUTH.REFRESH)
-    },
-
-    /**
-     * Logout (clears refresh cookie)
-     */
-    logout: async () => {
-        return apiClient.post(API_ENDPOINTS.AUTH.LOGOUT)
-    },
-
-    /**
-     * Forgot password (always returns 204)
-     */
-    forgotPassword: async (email: string) => {
-        return apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email })
-    },
-
-    /**
-     * Reset password using token (returns 204)
-     */
-    resetPassword: async (data: ResetPasswordPayload) => {
-        return apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, data)
-    },
-
-    /**
-     * Get current user
-     */
-    me: async () => {
-        return apiClient.get<UserProfile>(API_ENDPOINTS.AUTH.ME)
-    },
+  login: (email: string, password: string) =>
+    apiClient.post<AuthTokens>(API_ENDPOINTS.AUTH.LOGIN, { email, password }),
+  register: (email: string, password: string, username: string) =>
+    apiClient.post<AuthTokens>(API_ENDPOINTS.AUTH.REGISTER, { email, password, username }),
+  refresh: () => apiClient.post<AuthTokens>(API_ENDPOINTS.AUTH.REFRESH),
+  logout: () => apiClient.post(API_ENDPOINTS.AUTH.LOGOUT),
+  forgotPassword: (email: string) =>
+    apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email }),
+  resetPassword: (data: ResetPasswordPayload) =>
+    apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, data),
+  me: () => apiClient.get<UserProfile>(API_ENDPOINTS.AUTH.ME),
 }

@@ -63,6 +63,35 @@ def test_profile_update_conflicts(client):
     assert r2.status_code == 409, r2.text
 
 
+def test_profile_patch_can_clear_optional_fields_but_not_email(client):
+    access = _register_and_get_access(
+        client, email="clear@example.com", username="clear_me"
+    )
+    headers = {"Authorization": f"Bearer {access}"}
+
+    populated = client.patch(
+        "/api/v1/profile",
+        json={"first_name": "Alice", "bio": "Temporary"},
+        headers=headers,
+    )
+    assert populated.status_code == 200, populated.text
+
+    cleared = client.patch(
+        "/api/v1/profile",
+        json={"username": None, "first_name": None, "bio": None},
+        headers=headers,
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["username"] is None
+    assert cleared.json()["first_name"] is None
+    assert cleared.json()["bio"] is None
+
+    invalid_email = client.patch(
+        "/api/v1/profile", json={"email": None}, headers=headers
+    )
+    assert invalid_email.status_code == 422
+
+
 def test_change_password_flow(client):
     access = _register_and_get_access(client, email="pw1@example.com", username="pw1")
 

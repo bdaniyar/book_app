@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_superuser
@@ -40,7 +41,14 @@ def trending_books(
 ) -> list[BookRead]:
     books = (
         db.scalars(
-            book_query().order_by(Book.review_count.desc(), Book.average_rating.desc()).limit(limit)
+            book_query()
+            .order_by(
+                Book.review_count.desc(),
+                Book.average_rating.desc(),
+                Book.title.asc(),
+                Book.id.asc(),
+            )
+            .limit(limit)
         )
         .unique()
         .all()
@@ -55,7 +63,14 @@ def recommended_books(
 ) -> list[BookRead]:
     books = (
         db.scalars(
-            book_query().order_by(Book.average_rating.desc(), Book.review_count.desc()).limit(limit)
+            book_query()
+            .order_by(
+                Book.average_rating.desc(),
+                Book.review_count.desc(),
+                Book.title.asc(),
+                Book.id.asc(),
+            )
+            .limit(limit)
         )
         .unique()
         .all()
@@ -99,10 +114,14 @@ def similar_books(
     books = (
         db.scalars(
             book_query()
-            .join(Book.genres)
             .where(Book.id != book.id)
-            .where(Genre.id.in_(genre_ids))
-            .order_by(Book.average_rating.desc())
+            .where(Book.genres.any(Genre.id.in_(genre_ids)))
+            .order_by(
+                Book.average_rating.desc(),
+                Book.review_count.desc(),
+                Book.title.asc(),
+                Book.id.asc(),
+            )
             .limit(limit)
         )
         .unique()
@@ -120,7 +139,13 @@ def create_book_endpoint(
     try:
         book = create_book(db, payload)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A book with this ISBN or external identifier already exists",
+        ) from None
     return book_to_read(book)
 
 
@@ -137,7 +162,13 @@ def update_book_endpoint(
     try:
         book = update_book(db, book, payload)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A book with this ISBN or external identifier already exists",
+        ) from None
     return book_to_read(book)
 
 

@@ -1,15 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { Search, SlidersHorizontal } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { AlertCircle, RefreshCw, Search, SlidersHorizontal } from "lucide-react"
+
 import { BookCard } from "@/components/book-card"
 import { CategoryChips } from "@/components/category-chips"
 import { FilterPanel } from "@/components/filter-panel"
-import type { Book, Category } from "@/lib/books-data"
-import { categories as fallbackCategories, recommendedBooks, trendingBooks } from "@/lib/books-data"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { bookService, categoryService } from "@/lib/api-services"
+import type { Book, Category } from "@/lib/books-data"
 
 export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -20,95 +20,118 @@ export default function DiscoverPage() {
   const [books, setBooks] = useState<Book[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [categoryError, setCategoryError] = useState(false)
 
-  useEffect(() => {
-    let mounted = true
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    setCategoryError(false)
 
-    async function load() {
-      const [booksRes, genresRes] = await Promise.all([
-        bookService.getAll({ limit: 60 }),
-        categoryService.getAll(),
-      ])
-      if (!mounted) return
-      if (booksRes.success && booksRes.data?.length) {
-        setBooks(booksRes.data)
-      } else {
-        setBooks([...trendingBooks, ...recommendedBooks])
-      }
-      if (genresRes.success && genresRes.data) {
-        const nextCategories = genresRes.data.map((genre: any) => ({
-            id: genre.id,
-            name: genre.name,
-            slug: genre.slug || genre.name.toLowerCase().replace(/\s+/g, "-"),
-          }))
-        setCategories(nextCategories)
-        const params = new URLSearchParams(window.location.search)
-        const categorySlug = params.get("category")
-        if (categorySlug) {
-          const match = nextCategories.find((category) => category.slug === categorySlug)
-          if (match) setSelectedCategory(match.name)
-        }
-      } else {
-        setCategories(fallbackCategories)
-      }
-      setLoading(false)
+    const [booksResponse, genresResponse] = await Promise.all([
+      bookService.getAll({ limit: 100 }),
+      categoryService.getAll(),
+    ])
+
+    if (booksResponse.success) {
+      setBooks(booksResponse.data ?? [])
+    } else {
+      setBooks([])
+      setError(booksResponse.error || "Could not load the catalog.")
     }
 
-    load()
-    return () => {
-      mounted = false
+    if (genresResponse.success) {
+      setCategories((genresResponse.data ?? []).map((genre) => ({
+        id: genre.id,
+        name: genre.name,
+        slug: genre.name.toLowerCase().replace(/\s+/g, "-"),
+      })))
+    } else {
+      setCategories([])
+      setCategoryError(true)
     }
+    setLoading(false)
   }, [])
 
-  const filteredBooks = useMemo(() => books.filter((book) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setSearchQuery(params.get("q")?.trim() ?? "")
+    void load()
+  }, [load])
 
-    const matchesCategory = !selectedCategory || book.genre === selectedCategory
+  useEffect(() => {
+    const categorySlug = new URLSearchParams(window.location.search).get("category")
+    if (!categorySlug || !categories.length) return
+    const match = categories.find((category) => category.slug === categorySlug)
+    if (match) setSelectedCategory(match.name)
+  }, [categories])
+
+  const filteredBooks = useMemo(() => books.filter((book) => {
+    const query = searchQuery.toLocaleLowerCase()
+    const matchesSearch = !query
+      || book.title.toLocaleLowerCase().includes(query)
+      || book.author.toLocaleLowerCase().includes(query)
+      || book.isbn?.toLocaleLowerCase().includes(query)
+    const matchesCategory = !selectedCategory
+      || book.genres.includes(selectedCategory)
+      || book.genre === selectedCategory
     const matchesRating = book.rating >= minRating
     const matchesYear = !book.publishedYear || book.publishedYear >= minYear
-
     return matchesSearch && matchesCategory && matchesRating && matchesYear
   }), [books, searchQuery, selectedCategory, minRating, minYear])
 
+  const clearFilters = () => {
+    setSearchQuery("")
+    setSelectedCategory(null)
+    setMinRating(0)
+    setMinYear(1900)
+    window.history.replaceState(null, "", "/discover")
+  }
+
   return (
     <div className="w-full">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 max-w-7xl">
-        {/* Header */}
+      <div className="container mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-4">
-          <h1 className="font-sans text-3xl md:text-4xl font-bold">Discover Books</h1>
-          <p className="text-muted-foreground text-lg">
-            {loading ? "Loading the catalog..." : `Explore our collection of ${books.length.toLocaleString()} books`}
+          <h1 className="font-sans text-3xl font-bold md:text-4xl">Discover Books</h1>
+          <p className="text-lg text-muted-foreground">
+            {loading ? "Loading the catalog…" : `Explore ${books.length.toLocaleString()} available books`}
           </p>
         </div>
 
-        {/* Search and Filters */}
-        <div className="flex flex-col md:flex-row gap-4">
+        {error ? (
+          <div className="flex flex-col items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+            <p className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4" /> {error}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void load()}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Try again
+            </Button>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-4 md:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search by title or author..."
+              placeholder="Search by title, author, or ISBN…"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 h-12 text-base rounded-xl"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="h-12 rounded-xl pl-12 text-base"
+              aria-label="Search catalog"
             />
           </div>
           <Button
             variant="outline"
             size="lg"
-            onClick={() => setShowFilters(!showFilters)}
-            className="rounded-xl bg-transparent md:w-auto"
+            onClick={() => setShowFilters((visible) => !visible)}
+            className="rounded-xl bg-transparent"
           >
-            <SlidersHorizontal className="h-5 w-5 mr-2" />
-            Filters
+            <SlidersHorizontal className="mr-2 h-5 w-5" /> Filters
           </Button>
         </div>
 
-        {/* Filter Panel */}
-        {showFilters && (
+        {showFilters ? (
           <FilterPanel
             selectedCategory={selectedCategory}
             onCategoryChange={setSelectedCategory}
@@ -118,57 +141,49 @@ export default function DiscoverPage() {
             minYear={minYear}
             onMinYearChange={setMinYear}
           />
-        )}
+        ) : null}
 
-        {/* Categories */}
         <div className="space-y-4">
-          <h2 className="font-sans text-xl font-semibold">Browse by Genre</h2>
-          <CategoryChips
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onCategorySelect={setSelectedCategory}
-          />
-        </div>
-
-        {/* Results */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-muted-foreground">
-              {filteredBooks.length} {filteredBooks.length === 1 ? "book" : "books"} found
-            </p>
-            {(searchQuery || selectedCategory || minRating > 0 || minYear > 1900) && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setSearchQuery("")
-                  setSelectedCategory(null)
-                  setMinRating(0)
-                  setMinYear(1900)
-                }}
-              >
-                Clear filters
-              </Button>
-            )}
-          </div>
-
-          {filteredBooks.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {filteredBooks.map((book) => (
-                <BookCard key={book.id} book={book} />
-              ))}
-            </div>
+          <h2 className="text-xl font-semibold">Browse by Genre</h2>
+          {categoryError ? (
+            <p className="text-sm text-muted-foreground">Genres are temporarily unavailable.</p>
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-              <Search className="h-16 w-16 text-muted-foreground" />
-              <div className="space-y-2">
-                <h3 className="font-sans text-xl font-semibold">No books found</h3>
-                <p className="text-muted-foreground">
-                  Try adjusting your search or filters to find what you're looking for
-                </p>
-              </div>
-            </div>
+            <CategoryChips
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onCategorySelect={setSelectedCategory}
+            />
           )}
         </div>
+
+        {!error ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-muted-foreground">
+                {loading ? "Searching…" : `${filteredBooks.length} ${filteredBooks.length === 1 ? "book" : "books"} found`}
+              </p>
+              {(searchQuery || selectedCategory || minRating > 0 || minYear > 1900) ? (
+                <Button variant="ghost" onClick={clearFilters}>Clear filters</Button>
+              ) : null}
+            </div>
+
+            {!loading && filteredBooks.length ? (
+              <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {filteredBooks.map((book) => <BookCard key={book.id} book={book} />)}
+              </div>
+            ) : !loading ? (
+              <div className="flex flex-col items-center justify-center space-y-4 py-16 text-center">
+                <Search className="h-14 w-14 text-muted-foreground" />
+                <div className="space-y-2">
+                  <h2 className="text-xl font-semibold">No books found</h2>
+                  <p className="text-muted-foreground">
+                    {books.length ? "Try changing your search or filters." : "The catalog is empty."}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   )

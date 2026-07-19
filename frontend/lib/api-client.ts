@@ -1,215 +1,208 @@
-/**
- * API Client
- * Centralized API client for making requests to the backend
- */
+/** A small JSON API client with cookie-based refresh-token rotation. */
 
-import { API_CONFIG, API_ENDPOINTS } from './api-config'
-import { getAccessToken, setAccessToken, clearAccessToken } from './auth-storage'
+import { API_CONFIG, API_ENDPOINTS } from "./api-config"
+import { clearAccessToken, getAccessToken, setAccessToken } from "./auth-storage"
 
-/**
- * API Response type
- */
-export type ApiResponse<T = any> = {
-    data?: T
-    error?: string
-    message?: string
-    status: number
-    success: boolean
+export type ApiResponse<T = unknown> = {
+  data?: T
+  error?: string
+  message?: string
+  status: number
+  success: boolean
 }
 
-/**
- * API Error class
- */
 export class ApiError extends Error {
-    constructor(
-        public status: number,
-        public message: string,
-        public data?: any
-    ) {
-        super(message)
-        this.name = 'ApiError'
+  constructor(
+    public status: number,
+    message: string,
+    public data?: unknown,
+  ) {
+    super(message)
+    this.name = "ApiError"
+  }
+}
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+export type QueryValue = string | number | boolean | null | undefined
+
+export type RequestOptions = {
+  method?: HttpMethod
+  headers?: HeadersInit
+  body?: unknown
+  params?: Record<string, QueryValue>
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+function buildUrl(url: string, params?: Record<string, QueryValue>): string {
+  if (!params) return url
+
+  const searchParams = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== "") {
+      searchParams.append(key, String(value))
     }
+  })
+
+  const queryString = searchParams.toString()
+  return queryString ? `${url}?${queryString}` : url
 }
 
-/**
- * HTTP Method type
- */
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-
-/**
- * Request options
- */
-type RequestOptions = {
-    method?: HttpMethod
-    headers?: HeadersInit
-    body?: any
-    params?: Record<string, string | number | boolean>
-    signal?: AbortSignal
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
 }
 
-/**
- * Build URL with query parameters
- */
-function buildUrl(url: string, params?: Record<string, string | number | boolean>): string {
-    if (!params) return url
+function errorMessage(data: unknown): string {
+  if (!isRecord(data)) return "Request failed"
 
-    const searchParams = new URLSearchParams()
-    Object.entries(params).forEach(([key, value]) => {
-        searchParams.append(key, String(value))
-    })
-
-    const queryString = searchParams.toString()
-    return queryString ? `${url}?${queryString}` : url
+  const detail = data.detail
+  if (typeof detail === "string") return detail
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (!isRecord(item)) return null
+        return typeof item.msg === "string"
+          ? item.msg
+          : typeof item.message === "string"
+            ? item.message
+            : null
+      })
+      .filter((item): item is string => Boolean(item))
+    if (messages.length) return messages.join(", ")
+  }
+  if (typeof data.message === "string") return data.message
+  if (typeof data.error === "string") return data.error
+  return "Request failed"
 }
 
-/**
- * Make API request
- */
-async function request<T = any>(
-    url: string,
-    options: RequestOptions = {}
-): Promise<ApiResponse<T>> {
-    const {
-        method = 'GET',
-        headers = {},
-        body,
-        params,
-        signal,
-    } = options
+async function readJson(response: Response): Promise<unknown> {
+  const contentType = response.headers.get("content-type") ?? ""
+  if (!contentType.includes("application/json")) return undefined
+  return response.json().catch(() => undefined)
+}
 
-    const doFetch = async (): Promise<Response> => {
-        const fullUrl = buildUrl(url, params)
-        const token = getAccessToken()
+let refreshInFlight: Promise<string | null> | null = null
 
-        return fetch(fullUrl, {
-            method,
-            credentials: 'include',
-            headers: {
-                ...API_CONFIG.HEADERS,
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                ...headers,
-            },
-            body: body ? JSON.stringify(body) : undefined,
-            signal,
-        })
-    }
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight
+
+  refreshInFlight = (async () => {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort("timeout"), API_CONFIG.TIMEOUT)
 
     try {
-        let response = await doFetch()
+      const response = await fetch(API_ENDPOINTS.AUTH.REFRESH, {
+        method: "POST",
+        credentials: "include",
+        headers: API_CONFIG.HEADERS,
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        clearAccessToken()
+        return null
+      }
 
-        // If access token expired, try refresh once (refresh cookie is HttpOnly)
-        if ((response.status === 401 || response.status === 403) && url !== API_ENDPOINTS.AUTH.REFRESH) {
-            const refreshResp = await fetch(API_ENDPOINTS.AUTH.REFRESH, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    ...API_CONFIG.HEADERS,
-                },
-            })
-
-            if (refreshResp.ok) {
-                const refreshData = await refreshResp.json()
-                const newAccess = refreshData?.access_token
-                if (newAccess) {
-                    setAccessToken(newAccess)
-                    response = await doFetch()
-                }
-            } else {
-                clearAccessToken()
-            }
-        }
-
-        // 204 No Content (or empty response body) should not be parsed as JSON
-        if (response.status === 204) {
-            return {
-                data: undefined,
-                status: response.status,
-                success: true,
-            }
-        }
-
-        const contentType = response.headers.get('content-type') || ''
-        const hasJson = contentType.includes('application/json')
-
-        const data = hasJson ? await response.json().catch(() => undefined) : undefined
-
-        if (!response.ok) {
-            const detail = (data as any)?.detail
-            const message =
-                (typeof detail === 'string' ? detail : undefined) ||
-                (Array.isArray(detail) ? detail.map((item) => item.msg || item.message).filter(Boolean).join(', ') : undefined) ||
-                (data as any)?.message ||
-                (data as any)?.error ||
-                'Request failed'
-            throw new ApiError(response.status, message, data)
-        }
-
-        return {
-            data,
-            status: response.status,
-            success: true,
-        }
-    } catch (error) {
-        if (error instanceof ApiError) {
-            return {
-                error: error.message,
-                status: error.status,
-                success: false,
-            }
-        }
-
-        if (error instanceof Error) {
-            return {
-                error: error.message,
-                status: 500,
-                success: false,
-            }
-        }
-
-        return {
-            error: 'Unknown error occurred',
-            status: 500,
-            success: false,
-        }
+      const data = await readJson(response)
+      const accessToken = isRecord(data) && typeof data.access_token === "string" ? data.access_token : null
+      if (accessToken) setAccessToken(accessToken)
+      return accessToken
+    } catch {
+      return null
+    } finally {
+      window.clearTimeout(timeout)
+      refreshInFlight = null
     }
+  })()
+
+  return refreshInFlight
 }
 
-/**
- * API Client methods
- */
+async function request<T = unknown>(url: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
+  const {
+    method = "GET",
+    headers = {},
+    body,
+    params,
+    signal: externalSignal,
+    timeoutMs = API_CONFIG.TIMEOUT,
+  } = options
+
+  const controller = new AbortController()
+  let timedOut = false
+  const timeout = window.setTimeout(() => {
+    timedOut = true
+    controller.abort("timeout")
+  }, timeoutMs)
+  const abortFromCaller = () => controller.abort(externalSignal?.reason)
+  if (externalSignal?.aborted) abortFromCaller()
+  externalSignal?.addEventListener("abort", abortFromCaller, { once: true })
+
+  const doFetch = () => {
+    const token = getAccessToken()
+    return fetch(buildUrl(url, params), {
+      method,
+      credentials: "include",
+      headers: {
+        ...API_CONFIG.HEADERS,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
+    })
+  }
+
+  try {
+    let response = await doFetch()
+
+    // A 403 is an authorization decision, not an expired session.
+    if (response.status === 401 && url !== API_ENDPOINTS.AUTH.REFRESH) {
+      const refreshedToken = await refreshAccessToken()
+      if (refreshedToken) response = await doFetch()
+    }
+
+    if (response.status === 204) {
+      return { status: response.status, success: true }
+    }
+
+    const data = await readJson(response)
+    if (!response.ok) throw new ApiError(response.status, errorMessage(data), data)
+
+    return { data: data as T, status: response.status, success: true }
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { error: error.message, status: error.status, success: false }
+    }
+    if (timedOut) {
+      return { error: "The request timed out. Please try again.", status: 408, success: false }
+    }
+    if (externalSignal?.aborted) {
+      return { error: "The request was cancelled.", status: 0, success: false }
+    }
+    return {
+      error: typeof navigator !== "undefined" && !navigator.onLine
+        ? "You appear to be offline. Check your connection."
+        : "Unable to reach the server. Please try again.",
+      status: 0,
+      success: false,
+    }
+  } finally {
+    window.clearTimeout(timeout)
+    externalSignal?.removeEventListener("abort", abortFromCaller)
+  }
+}
+
 export const apiClient = {
-    /**
-     * GET request
-     */
-    get: <T = any>(url: string, options?: Omit<RequestOptions, 'method' | 'body'>) =>
-        request<T>(url, { ...options, method: 'GET' }),
-
-    /**
-     * POST request
-     */
-    post: <T = any>(url: string, body?: any, options?: Omit<RequestOptions, 'method'>) =>
-        request<T>(url, { ...options, body, method: 'POST' }),
-
-    /**
-     * PUT request
-     */
-    put: <T = any>(url: string, body?: any, options?: Omit<RequestOptions, 'method'>) =>
-        request<T>(url, { ...options, body, method: 'PUT' }),
-
-    /**
-     * PATCH request
-     */
-    patch: <T = any>(url: string, body?: any, options?: Omit<RequestOptions, 'method'>) =>
-        request<T>(url, { ...options, body, method: 'PATCH' }),
-
-    /**
-     * DELETE request
-     */
-    delete: <T = any>(url: string, options?: Omit<RequestOptions, 'method' | 'body'>) =>
-        request<T>(url, { ...options, method: 'DELETE' }),
+  get: <T = unknown>(url: string, options?: Omit<RequestOptions, "method" | "body">) =>
+    request<T>(url, { ...options, method: "GET" }),
+  post: <T = unknown>(url: string, body?: unknown, options?: Omit<RequestOptions, "method">) =>
+    request<T>(url, { ...options, body, method: "POST" }),
+  put: <T = unknown>(url: string, body?: unknown, options?: Omit<RequestOptions, "method">) =>
+    request<T>(url, { ...options, body, method: "PUT" }),
+  patch: <T = unknown>(url: string, body?: unknown, options?: Omit<RequestOptions, "method">) =>
+    request<T>(url, { ...options, body, method: "PATCH" }),
+  delete: <T = unknown>(url: string, options?: Omit<RequestOptions, "method" | "body">) =>
+    request<T>(url, { ...options, method: "DELETE" }),
 }
 
-/**
- * Export default client
- */
 export default apiClient
